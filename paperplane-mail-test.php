@@ -2,7 +2,7 @@
 /**
  * Plugin Name: PaperPlane Mail Test
  * Description: Monitors mail function on client sites. Requires PaperPlane Mail Test Child installed on each site.
- * Version: 1.0.5
+ * Version: 1.0.6
  * Author: Paper Plane Factory
  * Text Domain: paperplane-mail-test
  * Domain Path: /languages
@@ -553,7 +553,9 @@ function pp_mm_render_sites_page() {
 				); ?>
 			</p></div>
 		<?php endif; ?>
-		<?php if ( $checked >= 0 && isset( $sites[ $checked ] ) ) :
+		<?php
+		// Il notice usa l'indice originale (prima dell'ordinamento)
+		if ( $checked >= 0 && isset( $sites[ $checked ] ) ) :
 			$s = $sites[ $checked ]; ?>
 			<div class="notice notice-<?php echo $s['last_status'] === 'ok' ? 'success' : 'error'; ?> is-dismissible">
 				<p>Check <strong><?php echo esc_html( $s['label'] ?: $s['url'] ); ?></strong>:
@@ -564,6 +566,12 @@ function pp_mm_render_sites_page() {
 		<h2><?php esc_html_e( 'Sites', 'paperplane-mail-test' ); ?></h2>
 
 		<?php
+		// Conserva l'indice originale prima di ordinare, così i form passano
+		// sempre l'indice corretto rispetto a wp_options.
+		foreach ( $sites as $orig_idx => &$s ) {
+			$s['_orig_idx'] = $orig_idx;
+		}
+		unset( $s );
 		if ( ! empty( $sites ) ) {
 			usort( $sites, function( $a, $b ) {
 				return strcasecmp( $a['label'] ?: $a['url'], $b['label'] ?: $b['url'] );
@@ -605,14 +613,14 @@ function pp_mm_render_sites_page() {
 						<form method="post" style="display:inline">
 							<?php wp_nonce_field( 'pp_mm_check' ); ?>
 							<input type="hidden" name="pp_mm_action" value="check_now">
-							<input type="hidden" name="pp_mm_idx" value="<?php echo $i; ?>">
+							<input type="hidden" name="pp_mm_idx" value="<?php echo (int) $site['_orig_idx']; ?>">
 							<button type="submit" class="button button-secondary"><?php esc_html_e( 'Check now', 'paperplane-mail-test' ); ?></button>
 						</form>
 						&nbsp;
 						<form method="post" style="display:inline" onsubmit="return confirm('<?php echo esc_js( __( 'Remove this site?', 'paperplane-mail-test' ) ); ?>')">
 							<?php wp_nonce_field( 'pp_mm_delete' ); ?>
 							<input type="hidden" name="pp_mm_action" value="delete_site">
-							<input type="hidden" name="pp_mm_idx" value="<?php echo $i; ?>">
+							<input type="hidden" name="pp_mm_idx" value="<?php echo (int) $site['_orig_idx']; ?>">
 							<button type="submit" class="button button-link-delete"><?php esc_html_e( 'Remove', 'paperplane-mail-test' ); ?></button>
 						</form>
 					</td>
