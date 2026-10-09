@@ -23,7 +23,10 @@ Upload the `paperplane-mail-test` folder to `/wp-content/plugins/` and activate 
 
 ### 2. Configure notification recipients
 
-Go to **Mail Monitor → Settings** and enter one or more email addresses in the **Alert recipient** field (comma-separated).
+Go to **Mail Monitor → Settings** and configure:
+
+- **Alert recipient** — one or more addresses (comma-separated) that receive KO alerts, the weekly report, and manual test results
+- **Silent test address** — a single address used for automatic cron test emails; use a dedicated mailbox with a delete-all rule to avoid inbox noise
 
 ### 3. Add monitored sites
 
@@ -52,6 +55,12 @@ Authentication uses the secret key stored in `wp-config.php` on the client site.
 ### KO alert email
 
 Sent immediately when a site's mail function fails after a previously successful check. Includes site name, URL, error message, and timestamp.
+
+### Silent test address
+
+Automatic cron checks send the `wp_mail()` test to a dedicated address that silently discards incoming mail. This keeps `wp_mail()` fully exercised on every monitored site without generating inbox noise. Only KO alerts are forwarded to the alert recipient.
+
+Manual checks triggered via "Check now" send the test to the alert recipient instead, so you can verify delivery end-to-end.
 
 ### Weekly summary report
 
