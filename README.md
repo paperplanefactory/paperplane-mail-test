@@ -1,5 +1,19 @@
 # PaperPlane Mail Test
 
+## The problem
+
+When a WordPress site stops sending emails, nobody notices — until a client complains that their contact form hasn't been working for weeks, or a lead goes unanswered because the notification never arrived.
+
+The cause can be anything: a misconfigured SMTP plugin, a hosting provider blocking port 25, a PHP update that broke a mail library. Whatever the reason, the failure is silent. By the time someone realises, business has already been lost — and someone has to take responsibility for it.
+
+Plugins like WP Mail SMTP can signal a delivery problem on the dashboard, but they can't send an email alert when email is broken. That's the catch.
+
+## The solution
+
+PaperPlane Mail Test monitors the mail function on your client sites from a central installation. It periodically sends a test email through each site and checks whether `wp_mail()` succeeds. If it fails, you receive an alert immediately — before your client even notices.
+
+---
+
 WordPress plugin that periodically checks whether the mail function works on each monitored client site. Part of the PaperPlane mail monitoring system — install this on the central assistance site.
 
 Each client site must have the **PaperPlane Mail Test Child** plugin installed and configured.
