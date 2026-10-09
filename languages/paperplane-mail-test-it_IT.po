@@ -1,0 +1,159 @@
+# Copyright (C) 2026 Paper Plane Factory
+# This file is distributed under the same license as the PaperPlane Mail Test plugin.
+msgid ""
+msgstr ""
+"Project-Id-Version: PaperPlane Mail Test 1.0.0\n"
+"Report-Msgid-Bugs-To: https://paperplanefactory.com\n"
+"POT-Creation-Date: 2026-10-09\n"
+"PO-Revision-Date: 2026-10-09\n"
+"Language: it_IT\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: manual\n"
+"X-Domain: paperplane-mail-test\n"
+
+#: paperplane-mail-test.php:104
+msgid "Invalid response"
+msgstr "Risposta non valida"
+
+#: paperplane-mail-test.php:120
+msgid "[Assistance] Mail KO: %s"
+msgstr "[Assistenza] Mail KO: %s"
+
+#: paperplane-mail-test.php:121
+msgid "The mail function test on %s failed."
+msgstr "Il test della funzione mail su %s è fallito."
+
+#: paperplane-mail-test.php:122
+msgid "URL:"
+msgstr "URL:"
+
+#: paperplane-mail-test.php:123
+msgid "Error:"
+msgstr "Errore:"
+
+#: paperplane-mail-test.php:124
+msgid "Date:"
+msgstr "Data:"
+
+#: paperplane-mail-test.php:134
+#: paperplane-mail-test.php:232
+msgid "Site Mail Monitor"
+msgstr "Monitor Mail Siti"
+
+#: paperplane-mail-test.php:135
+msgid "Mail Monitor"
+msgstr "Monitor Mail"
+
+#: paperplane-mail-test.php:233
+msgid "Periodically checks that the mail function works on each site. Requires the %s plugin installed on each monitored site."
+msgstr "Controlla periodicamente che la funzione mail funzioni su ogni sito. Richiede il plugin %s installato su ciascun sito monitorato."
+
+#: paperplane-mail-test.php:236
+msgid "Site added."
+msgstr "Sito aggiunto."
+
+#: paperplane-mail-test.php:244
+msgid "KO notification email"
+msgstr "Email notifica KO"
+
+#: paperplane-mail-test.php:248
+msgid "Alert recipient"
+msgstr "Destinatario avvisi"
+
+#: paperplane-mail-test.php:255
+msgid "Multiple addresses separated by comma."
+msgstr "Più indirizzi separati da virgola."
+
+#: paperplane-mail-test.php:259
+msgid "Save"
+msgstr "Salva"
+
+#: paperplane-mail-test.php:263
+msgid "Monitored sites"
+msgstr "Siti monitorati"
+
+#: paperplane-mail-test.php:268
+msgid "Site"
+msgstr "Sito"
+
+#: paperplane-mail-test.php:269
+msgid "Frequency"
+msgstr "Frequenza"
+
+#: paperplane-mail-test.php:270
+msgid "Last check"
+msgstr "Ultimo check"
+
+#: paperplane-mail-test.php:271
+msgid "Status"
+msgstr "Stato"
+
+#: paperplane-mail-test.php:272
+msgid "Actions"
+msgstr "Azioni"
+
+#: paperplane-mail-test.php:285
+#: paperplane-mail-test.php:340
+msgid "Every hour"
+msgstr "Ogni ora"
+
+#: paperplane-mail-test.php:285
+#: paperplane-mail-test.php:339
+msgid "Every day"
+msgstr "Ogni giorno"
+
+#: paperplane-mail-test.php:299
+msgid "Check now"
+msgstr "Controlla ora"
+
+#: paperplane-mail-test.php:304
+msgid "Remove this site?"
+msgstr "Rimuovere questo sito?"
+
+#: paperplane-mail-test.php:308
+msgid "Remove"
+msgstr "Rimuovi"
+
+#: paperplane-mail-test.php:316
+msgid "No sites configured."
+msgstr "Nessun sito configurato."
+
+#: paperplane-mail-test.php:319
+#: paperplane-mail-test.php:349
+msgid "Add site"
+msgstr "Aggiungi sito"
+
+msgid "Invalid URL. Only https:// addresses pointing to public sites are accepted."
+msgstr "URL non valido. Sono accettati solo indirizzi https:// che puntano a siti pubblici."
+
+msgid "You do not have sufficient permissions to access this page."
+msgstr "Non hai i permessi necessari per accedere a questa pagina."
+
+msgid "Must start with https://."
+msgstr "Deve iniziare con https://."
+
+#: paperplane-mail-test.php:325
+msgid "Name / label"
+msgstr "Nome / etichetta"
+
+#: paperplane-mail-test.php:329
+msgid "Site URL"
+msgstr "URL sito"
+
+#: paperplane-mail-test.php:333
+msgid "Secret key"
+msgstr "Chiave segreta"
+
+#: paperplane-mail-test.php:335
+msgid "Copy from Tools → Mail Test on the site"
+msgstr "Copia da Strumenti → Mail Test sul sito"
+
+#: paperplane-mail-test.php:336
+msgid "Available in %s on the site to monitor."
+msgstr "Disponibile in %s sul sito da monitorare."
+
+#: paperplane-mail-test.php:340
+msgid "Check frequency"
+msgstr "Frequenza controllo"

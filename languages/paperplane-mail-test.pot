@@ -1,0 +1,148 @@
+# Copyright (C) 2026 Paper Plane Factory
+# This file is distributed under the same license as the PaperPlane Mail Test plugin.
+msgid ""
+msgstr ""
+"Project-Id-Version: PaperPlane Mail Test 1.0.0\n"
+"Report-Msgid-Bugs-To: https://paperplanefactory.com\n"
+"POT-Creation-Date: 2026-10-09\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: manual\n"
+"X-Domain: paperplane-mail-test\n"
+
+#: paperplane-mail-test.php:104
+msgid "Invalid response"
+msgstr ""
+
+#: paperplane-mail-test.php:120
+msgid "[Assistance] Mail KO: %s"
+msgstr ""
+
+#: paperplane-mail-test.php:121
+msgid "The mail function test on %s failed."
+msgstr ""
+
+#: paperplane-mail-test.php:122
+msgid "URL:"
+msgstr ""
+
+#: paperplane-mail-test.php:123
+msgid "Error:"
+msgstr ""
+
+#: paperplane-mail-test.php:124
+msgid "Date:"
+msgstr ""
+
+#: paperplane-mail-test.php:134
+#: paperplane-mail-test.php:232
+msgid "Site Mail Monitor"
+msgstr ""
+
+#: paperplane-mail-test.php:135
+msgid "Mail Monitor"
+msgstr ""
+
+#: paperplane-mail-test.php:233
+msgid "Periodically checks that the mail function works on each site. Requires the %s plugin installed on each monitored site."
+msgstr ""
+
+#: paperplane-mail-test.php:236
+msgid "Site added."
+msgstr ""
+
+#: paperplane-mail-test.php:244
+msgid "KO notification email"
+msgstr ""
+
+#: paperplane-mail-test.php:248
+msgid "Alert recipient"
+msgstr ""
+
+#: paperplane-mail-test.php:255
+msgid "Multiple addresses separated by comma."
+msgstr ""
+
+#: paperplane-mail-test.php:259
+msgid "Save"
+msgstr ""
+
+#: paperplane-mail-test.php:263
+msgid "Monitored sites"
+msgstr ""
+
+#: paperplane-mail-test.php:268
+msgid "Site"
+msgstr ""
+
+#: paperplane-mail-test.php:269
+msgid "Frequency"
+msgstr ""
+
+#: paperplane-mail-test.php:270
+msgid "Last check"
+msgstr ""
+
+#: paperplane-mail-test.php:271
+msgid "Status"
+msgstr ""
+
+#: paperplane-mail-test.php:272
+msgid "Actions"
+msgstr ""
+
+#: paperplane-mail-test.php:285
+#: paperplane-mail-test.php:340
+msgid "Every hour"
+msgstr ""
+
+#: paperplane-mail-test.php:285
+#: paperplane-mail-test.php:339
+msgid "Every day"
+msgstr ""
+
+#: paperplane-mail-test.php:299
+msgid "Check now"
+msgstr ""
+
+#: paperplane-mail-test.php:304
+msgid "Remove this site?"
+msgstr ""
+
+#: paperplane-mail-test.php:308
+msgid "Remove"
+msgstr ""
+
+#: paperplane-mail-test.php:316
+msgid "No sites configured."
+msgstr ""
+
+#: paperplane-mail-test.php:319
+#: paperplane-mail-test.php:349
+msgid "Add site"
+msgstr ""
+
+#: paperplane-mail-test.php:325
+msgid "Name / label"
+msgstr ""
+
+#: paperplane-mail-test.php:329
+msgid "Site URL"
+msgstr ""
+
+#: paperplane-mail-test.php:333
+msgid "Secret key"
+msgstr ""
+
+#: paperplane-mail-test.php:335
+msgid "Copy from Tools → Mail Test on the site"
+msgstr ""
+
+#: paperplane-mail-test.php:336
+msgid "Available in %s on the site to monitor."
+msgstr ""
+
+#: paperplane-mail-test.php:340
+msgid "Check frequency"
+msgstr ""
