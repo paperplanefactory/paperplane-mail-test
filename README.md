@@ -24,6 +24,8 @@ Each client site must have the **PaperPlane Mail Test Child** plugin installed a
 
 - WordPress 5.9+
 - PHP 8.0+
+- PHP OpenSSL extension (required for secret key encryption)
+- `AUTH_KEY` defined in `wp-config.php` (present on all standard WordPress installations)
 - **PaperPlane Mail Test Child** installed on each site to monitor
 - WP-Cron enabled, or a system cron calling `wp-cron.php`
 
