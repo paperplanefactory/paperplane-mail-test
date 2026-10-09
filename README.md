@@ -1,0 +1,64 @@
+# PaperPlane Mail Test
+
+WordPress plugin that periodically checks whether the mail function works on each monitored client site. Part of the PaperPlane mail monitoring system — install this on the central assistance site.
+
+Each client site must have the **PaperPlane Mail Test Child** plugin installed and configured.
+
+---
+
+## Requirements
+
+- WordPress 5.9+
+- PHP 8.0+
+- **PaperPlane Mail Test Child** installed on each site to monitor
+- WP-Cron enabled, or a system cron calling `wp-cron.php`
+
+---
+
+## Installation
+
+### 1. Upload the plugin
+
+Upload the `paperplane-mail-test` folder to `/wp-content/plugins/` and activate it from the WordPress dashboard.
+
+### 2. Configure notification recipients
+
+Go to **Settings → Mail Monitor** and enter one or more email addresses in the **Alert recipient** field (comma-separated).
+
+### 3. Add monitored sites
+
+In the same page, fill in the **Add site** form for each client site:
+
+- **Name / label** — a friendly name (e.g. "Pinsami")
+- **Site URL** — must start with `https://`
+- **Secret key** — copy it from **Tools → PaperPlane Mail Test** on the client site
+- **Check frequency** — hourly or daily
+
+---
+
+## How it works
+
+1. WP-Cron triggers a check at the configured frequency for each site
+2. The plugin sends an authenticated `POST` request to `/wp-json/pp-mail-test/v1/check` on the client site
+3. The child plugin runs `wp_mail()` and returns `true` or `false`
+4. If the result is KO **and the previous check was OK** (state change only), an alert email is sent to the configured recipients
+
+Authentication uses the secret key stored in `wp-config.php` on the client site. Keys are never stored in the database on the client side.
+
+---
+
+## Updates
+
+The plugin updates automatically from the WordPress dashboard via releases published on this repository.
+
+---
+
+## Related
+
+- [PaperPlane Mail Test Child](https://github.com/paperplanefactory/paperplane-mail-test-child) — install on each monitored site
+
+---
+
+## Author
+
+[Paper Plane Factory](https://paperplanefactory.com)
