@@ -2,7 +2,7 @@
 /**
  * Plugin Name: PaperPlane Mail Test
  * Description: Monitors mail function on client sites. Requires PaperPlane Mail Test Child installed on each site.
- * Version: 1.0.7
+ * Version: 1.0.8
  * Author: Paper Plane Factory
  * Text Domain: paperplane-mail-test
  * Domain Path: /languages
@@ -651,6 +651,7 @@ function pp_mm_render_sites_page() {
 					<th><?php esc_html_e( 'Site', 'paperplane-mail-test' ); ?></th>
 					<th><?php esc_html_e( 'Frequency', 'paperplane-mail-test' ); ?></th>
 					<th><?php esc_html_e( 'Last check', 'paperplane-mail-test' ); ?></th>
+					<th><?php esc_html_e( 'Next check', 'paperplane-mail-test' ); ?></th>
 					<th><?php esc_html_e( 'Status', 'paperplane-mail-test' ); ?></th>
 					<th><?php esc_html_e( 'Actions', 'paperplane-mail-test' ); ?></th>
 				</tr>
@@ -661,6 +662,16 @@ function pp_mm_render_sites_page() {
 				$last_check = $site['last_check'] ? wp_date( 'd/m/Y H:i', $site['last_check'] ) : '—';
 				$color      = $status === 'ok' ? '#46b450' : ( $status === 'error' ? '#d63638' : '#999' );
 				$label_st   = $status === 'ok' ? '✔ OK' : ( $status === 'error' ? '✖ KO' : '—' );
+
+				$last_ts   = (int) ( $site['last_check'] ?? 0 );
+				$interval  = $site['frequency'] === 'hourly' ? HOUR_IN_SECONDS : 23 * HOUR_IN_SECONDS;
+				if ( ! $last_ts ) {
+					$next_check = esc_html__( 'Pending', 'paperplane-mail-test' );
+				} elseif ( $last_ts + $interval <= time() ) {
+					$next_check = esc_html__( 'Soon', 'paperplane-mail-test' );
+				} else {
+					$next_check = wp_date( 'd/m/Y H:i', $last_ts + $interval );
+				}
 			?>
 				<tr>
 					<td>
@@ -669,6 +680,7 @@ function pp_mm_render_sites_page() {
 					</td>
 					<td><?php echo $site['frequency'] === 'hourly' ? esc_html__( 'Every hour', 'paperplane-mail-test' ) : esc_html__( 'Every day', 'paperplane-mail-test' ); ?></td>
 					<td><?php echo esc_html( $last_check ); ?></td>
+					<td><?php echo esc_html( $next_check ); ?></td>
 					<td style="color:<?php echo $color; ?>;font-weight:bold">
 						<?php echo $label_st; ?>
 						<?php if ( $status === 'error' && $site['last_message'] ) : ?>
