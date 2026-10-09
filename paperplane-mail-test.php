@@ -12,6 +12,18 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+// ─── Auto-aggiornamenti da GitHub ─────────────────────────────────────────────
+require_once __DIR__ . '/vendor/autoload.php';
+
+add_action( 'init', function () {
+	$checker = YahnisElsts\PluginUpdateChecker\v5\PucFactory::buildUpdateChecker(
+		'https://github.com/paperplanefactory/paperplane-mail-test/',
+		__FILE__,
+		'paperplane-mail-test'
+	);
+	$checker->setBranch( 'main' );
+} );
+
 define( 'PP_MM_OPTION_SITES',  'pp_mm_sites' );
 define( 'PP_MM_OPTION_NOTIFY', 'pp_mm_notify_email' );
 define( 'PP_MM_CRON_HOOK',     'pp_mm_run_checks' );
