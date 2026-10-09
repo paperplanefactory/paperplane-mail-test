@@ -29,7 +29,7 @@ Go to **Settings → Mail Monitor** and enter one or more email addresses in the
 
 In the same page, fill in the **Add site** form for each client site:
 
-- **Name / label** — a friendly name (e.g. "Pinsami")
+- **Name / label** — a friendly name (e.g. "Client Site")
 - **Site URL** — must start with `https://`
 - **Secret key** — copy it from **Tools → PaperPlane Mail Test** on the client site
 - **Check frequency** — hourly or daily
