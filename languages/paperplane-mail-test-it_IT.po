@@ -277,3 +277,15 @@ msgstr "Indirizzo test silenzioso"
 
 msgid "Address that receives automatic cron test emails. Use a dedicated mailbox with a delete-all rule — this prevents inbox noise while keeping wp_mail() fully tested on each site."
 msgstr "Indirizzo che riceve le mail di test automatiche del cron. Usa una casella dedicata con una regola elimina-tutto — evita il rumore nella posta in arrivo mantenendo wp_mail() testato su ogni sito."
+
+msgid "Next check"
+msgstr "Prossimo check"
+
+msgid "Pending"
+msgstr "In attesa"
+
+msgid "Soon"
+msgstr "Imminente"
+
+msgid "PaperPlane Mail Test requires the PHP OpenSSL extension. Please enable it on your server and try again."
+msgstr "PaperPlane Mail Test richiede l'estensione PHP OpenSSL. Abilitala sul server e riprova."
