@@ -23,11 +23,11 @@ Upload the `paperplane-mail-test` folder to `/wp-content/plugins/` and activate 
 
 ### 2. Configure notification recipients
 
-Go to **Settings → Mail Monitor** and enter one or more email addresses in the **Alert recipient** field (comma-separated).
+Go to **Mail Monitor → Settings** and enter one or more email addresses in the **Alert recipient** field (comma-separated).
 
 ### 3. Add monitored sites
 
-In the same page, fill in the **Add site** form for each client site:
+Go to **Mail Monitor → Monitored Sites** and fill in the **Add site** form for each client site:
 
 - **Name / label** — a friendly name (e.g. "Client Site")
 - **Site URL** — must start with `https://`
@@ -44,6 +44,25 @@ In the same page, fill in the **Add site** form for each client site:
 4. If the result is KO **and the previous check was OK** (state change only), an alert email is sent to the configured recipients
 
 Authentication uses the secret key stored in `wp-config.php` on the client site. Keys are never stored in the database on the client side.
+
+---
+
+## Features
+
+### KO alert email
+
+Sent immediately when a site's mail function fails after a previously successful check. Includes site name, URL, error message, and timestamp.
+
+### Weekly summary report
+
+An optional weekly email listing all monitored sites with their current status, last check time, and frequency. Configure day of the week and time of sending under **Mail Monitor → Settings → Weekly report**.
+
+### Export / Import
+
+Transfer the list of monitored sites between installations:
+
+- **Export** — downloads a `.json` file containing all sites and their secret keys. Keep this file safe, as it contains credentials.
+- **Import** — upload a previously exported file. Choose between replacing all existing sites or merging with them. The secret keys in the file must already be configured on the respective client sites.
 
 ---
 
