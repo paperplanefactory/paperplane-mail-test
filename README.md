@@ -31,9 +31,9 @@ Each client site must have the **PaperPlane Mail Test Child** plugin installed a
 
 ## Installation
 
-### 1. Upload the plugin
+### 1. Download and upload the plugin
 
-Upload the `paperplane-mail-test` folder to `/wp-content/plugins/` and activate it from the WordPress dashboard.
+Download the latest release from the [GitHub Releases page](https://github.com/paperplanefactory/paperplane-mail-test/releases), extract the zip, upload the `paperplane-mail-test` folder to `/wp-content/plugins/`, and activate it from the WordPress dashboard.
 
 ### 2. Configure notification recipients
 
