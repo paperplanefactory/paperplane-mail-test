@@ -12,3 +12,4 @@ delete_option( 'pp_mm_weekly_enabled' );
 delete_option( 'pp_mm_weekly_day' );
 delete_option( 'pp_mm_weekly_hour' );
 delete_option( 'pp_mm_weekly_last_sent' );
+delete_option( 'pp_mm_silent_test_email' );

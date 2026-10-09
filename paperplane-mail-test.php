@@ -2,7 +2,7 @@
 /**
  * Plugin Name: PaperPlane Mail Test
  * Description: Monitors mail function on client sites. Requires PaperPlane Mail Test Child installed on each site.
- * Version: 1.0.4
+ * Version: 1.0.5
  * Author: Paper Plane Factory
  * Text Domain: paperplane-mail-test
  * Domain Path: /languages
@@ -31,6 +31,7 @@ define( 'PP_MM_OPTION_WEEKLY_ENABLED', 'pp_mm_weekly_enabled' );
 define( 'PP_MM_OPTION_WEEKLY_DAY',     'pp_mm_weekly_day' );
 define( 'PP_MM_OPTION_WEEKLY_HOUR',    'pp_mm_weekly_hour' );
 define( 'PP_MM_OPTION_WEEKLY_LAST',    'pp_mm_weekly_last_sent' );
+define( 'PP_MM_OPTION_SILENT_TEST',   'pp_mm_silent_test_email' );
 
 // ─── i18n ─────────────────────────────────────────────────────────────────────
 
@@ -104,7 +105,8 @@ function pp_mm_run_checks() {
 			continue;
 		}
 
-		$result = pp_mm_check_site( $site );
+		$silent_test = get_option( PP_MM_OPTION_SILENT_TEST, '' );
+		$result      = pp_mm_check_site( $site, $silent_test );
 
 		$prev_status          = $site['last_status'] ?? '';
 		$site['last_check']   = $now;
@@ -129,14 +131,13 @@ function pp_mm_run_checks() {
 /**
  * Chiama l'endpoint del sito e restituisce array ['success', 'message'].
  */
-function pp_mm_check_site( array $site ) {
+function pp_mm_check_site( array $site, string $test_email = '' ) {
 	$url    = trailingslashit( $site['url'] ) . 'wp-json/pp-mail-test/v1/check';
 	$secret = $site['secret'] ?? '';
 
-	$notify = get_option( PP_MM_OPTION_NOTIFY, '' );
-	$body   = array( 'pp_secret' => $secret );
-	if ( $notify ) {
-		$body['test_email'] = $notify;
+	$body = array( 'pp_secret' => $secret );
+	if ( $test_email ) {
+		$body['test_email'] = $test_email;
 	}
 	$response = wp_remote_post( $url, array(
 		'timeout' => 15,
@@ -326,6 +327,9 @@ function pp_mm_register_settings() {
 	register_setting( 'pp_mm_settings', PP_MM_OPTION_NOTIFY, array(
 		'sanitize_callback' => 'sanitize_text_field',
 	) );
+	register_setting( 'pp_mm_settings', PP_MM_OPTION_SILENT_TEST, array(
+		'sanitize_callback' => 'sanitize_email',
+	) );
 	register_setting( 'pp_mm_settings', PP_MM_OPTION_WEEKLY_ENABLED, array(
 		'sanitize_callback' => 'absint',
 	) );
@@ -395,7 +399,7 @@ function pp_mm_handle_actions() {
 		$idx   = (int) ( $_POST['pp_mm_idx'] ?? -1 );
 		$sites = get_option( PP_MM_OPTION_SITES, array() );
 		if ( isset( $sites[ $idx ] ) ) {
-			$result                        = pp_mm_check_site( $sites[ $idx ] );
+			$result                        = pp_mm_check_site( $sites[ $idx ], get_option( PP_MM_OPTION_NOTIFY, '' ) );
 			$prev_status                   = $sites[ $idx ]['last_status'] ?? '';
 			$sites[ $idx ]['last_check']   = time();
 			$sites[ $idx ]['last_status']  = $result['success'] ? 'ok' : 'error';
@@ -667,6 +671,7 @@ function pp_mm_render_settings_page() {
 	}
 
 	$notify         = get_option( PP_MM_OPTION_NOTIFY, '' );
+	$silent_test    = get_option( PP_MM_OPTION_SILENT_TEST, '' );
 	$weekly_enabled = (int) get_option( PP_MM_OPTION_WEEKLY_ENABLED, 0 );
 	$weekly_day     = (int) get_option( PP_MM_OPTION_WEEKLY_DAY, 1 );
 	$weekly_hour    = (int) get_option( PP_MM_OPTION_WEEKLY_HOUR, 8 );
@@ -700,6 +705,17 @@ function pp_mm_render_settings_page() {
 							class="regular-text"
 							placeholder="uno@esempio.it, due@esempio.it">
 						<p class="description"><?php esc_html_e( 'Multiple addresses separated by comma.', 'paperplane-mail-test' ); ?></p>
+					</td>
+				</tr>
+				<tr>
+					<th><label for="pp_mm_silent_test"><?php esc_html_e( 'Silent test address', 'paperplane-mail-test' ); ?></label></th>
+					<td>
+						<input type="email" id="pp_mm_silent_test"
+							name="<?php echo esc_attr( PP_MM_OPTION_SILENT_TEST ); ?>"
+							value="<?php echo esc_attr( $silent_test ); ?>"
+							class="regular-text"
+							placeholder="paperplane-mail-test@example.com">
+						<p class="description"><?php esc_html_e( 'Address that receives automatic cron test emails. Use a dedicated mailbox with a delete-all rule — this prevents inbox noise while keeping wp_mail() fully tested on each site.', 'paperplane-mail-test' ); ?></p>
 					</td>
 				</tr>
 			</table>
