@@ -157,3 +157,51 @@ msgstr "Disponibile in %s sul sito da monitorare."
 #: paperplane-mail-test.php:340
 msgid "Check frequency"
 msgstr "Frequenza controllo"
+
+msgid "%1$d sites monitored — %2$d OK, %3$d KO"
+msgstr "%1$d siti monitorati — %2$d OK, %3$d KO"
+
+msgid "[Weekly Report] PaperPlane Mail Monitor — %s"
+msgstr "[Weekly Report] PaperPlane Mail Monitor — %s"
+
+msgid "Weekly Mail Monitor Report"
+msgstr "Report settimanale Mail Monitor"
+
+msgid "Weekly report"
+msgstr "Report settimanale"
+
+msgid "Enable"
+msgstr "Attiva"
+
+msgid "Send a weekly summary email to alert recipients"
+msgstr "Invia una mail di riepilogo settimanale ai destinatari degli avvisi"
+
+msgid "Day of the week"
+msgstr "Giorno della settimana"
+
+msgid "Monday"
+msgstr "Lunedì"
+
+msgid "Tuesday"
+msgstr "Martedì"
+
+msgid "Wednesday"
+msgstr "Mercoledì"
+
+msgid "Thursday"
+msgstr "Giovedì"
+
+msgid "Friday"
+msgstr "Venerdì"
+
+msgid "Saturday"
+msgstr "Sabato"
+
+msgid "Sunday"
+msgstr "Domenica"
+
+msgid "Time"
+msgstr "Ora"
+
+msgid "Based on the timezone set in Settings → General."
+msgstr "In base al fuso orario impostato in Impostazioni → Generali."

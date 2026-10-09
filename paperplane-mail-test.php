@@ -2,7 +2,7 @@
 /**
  * Plugin Name: PaperPlane Mail Test
  * Description: Monitors mail function on client sites. Requires PaperPlane Mail Test Child installed on each site.
- * Version: 1.0.1
+ * Version: 1.0.2
  * Author: Paper Plane Factory
  * Text Domain: paperplane-mail-test
  * Domain Path: /languages
@@ -24,9 +24,13 @@ add_action( 'init', function () {
 	$checker->setBranch( 'main' );
 } );
 
-define( 'PP_MM_OPTION_SITES',  'pp_mm_sites' );
-define( 'PP_MM_OPTION_NOTIFY', 'pp_mm_notify_email' );
-define( 'PP_MM_CRON_HOOK',     'pp_mm_run_checks' );
+define( 'PP_MM_OPTION_SITES',           'pp_mm_sites' );
+define( 'PP_MM_OPTION_NOTIFY',          'pp_mm_notify_email' );
+define( 'PP_MM_CRON_HOOK',              'pp_mm_run_checks' );
+define( 'PP_MM_OPTION_WEEKLY_ENABLED',  'pp_mm_weekly_enabled' );
+define( 'PP_MM_OPTION_WEEKLY_DAY',      'pp_mm_weekly_day' );
+define( 'PP_MM_OPTION_WEEKLY_HOUR',     'pp_mm_weekly_hour' );
+define( 'PP_MM_OPTION_WEEKLY_LAST',     'pp_mm_weekly_last_sent' );
 
 // ─── i18n ─────────────────────────────────────────────────────────────────────
 
@@ -118,6 +122,8 @@ function pp_mm_run_checks() {
 	if ( $updated ) {
 		update_option( PP_MM_OPTION_SITES, $sites );
 	}
+
+	pp_mm_maybe_send_weekly_report();
 }
 
 /**
@@ -175,6 +181,115 @@ function pp_mm_send_alert( array $site, string $message ) {
 	wp_mail( $recipients, $subject, $body, array( 'Content-Type: text/html; charset=UTF-8' ) );
 }
 
+// ─── Report settimanale ───────────────────────────────────────────────────────
+
+function pp_mm_maybe_send_weekly_report() {
+	if ( ! get_option( PP_MM_OPTION_WEEKLY_ENABLED, 0 ) ) {
+		return;
+	}
+
+	$day  = (int) get_option( PP_MM_OPTION_WEEKLY_DAY, 1 );
+	$hour = (int) get_option( PP_MM_OPTION_WEEKLY_HOUR, 8 );
+	$last = (int) get_option( PP_MM_OPTION_WEEKLY_LAST, 0 );
+
+	// Non inviare se già inviato nelle ultime 6 giorni
+	if ( ( time() - $last ) < 6 * DAY_IN_SECONDS ) {
+		return;
+	}
+
+	// Confronta giorno e ora nel fuso orario di WordPress
+	$tz      = wp_timezone();
+	$now_dt  = new DateTime( 'now', $tz );
+	$cur_day  = (int) $now_dt->format( 'N' ); // 1=lunedì … 7=domenica
+	$cur_hour = (int) $now_dt->format( 'G' ); // 0–23
+
+	if ( $cur_day !== $day || $cur_hour !== $hour ) {
+		return;
+	}
+
+	pp_mm_send_weekly_report();
+	update_option( PP_MM_OPTION_WEEKLY_LAST, time() );
+}
+
+function pp_mm_send_weekly_report() {
+	$notify = get_option( PP_MM_OPTION_NOTIFY, '' );
+	if ( ! $notify ) {
+		return;
+	}
+	$recipients = array_filter( array_map( 'sanitize_email', array_map( 'trim', explode( ',', $notify ) ) ) );
+	if ( empty( $recipients ) ) {
+		return;
+	}
+
+	$sites = get_option( PP_MM_OPTION_SITES, array() );
+	usort( $sites, function( $a, $b ) {
+		return strcasecmp( $a['label'] ?: $a['url'], $b['label'] ?: $b['url'] );
+	} );
+
+	$ok_count = 0;
+	$ko_count = 0;
+	$rows     = '';
+
+	foreach ( $sites as $site ) {
+		$label      = $site['label'] ?: $site['url'];
+		$status     = $site['last_status'] ?? '';
+		$last_check = $site['last_check'] ? wp_date( 'd/m/Y H:i', $site['last_check'] ) : '—';
+		$freq       = $site['frequency'] === 'hourly'
+			? __( 'Every hour', 'paperplane-mail-test' )
+			: __( 'Every day', 'paperplane-mail-test' );
+
+		if ( $status === 'ok' ) {
+			$ok_count++;
+			$status_html = '<span style="color:#46b450;font-weight:bold">&#10004; OK</span>';
+		} elseif ( $status === 'error' ) {
+			$ko_count++;
+			$status_html = '<span style="color:#d63638;font-weight:bold">&#10006; KO</span>';
+			if ( $site['last_message'] ) {
+				$status_html .= '<br><span style="font-size:.9em;font-weight:normal">' . esc_html( $site['last_message'] ) . '</span>';
+			}
+		} else {
+			$status_html = '<span style="color:#999">—</span>';
+		}
+
+		$rows .= '<tr>'
+			. '<td style="padding:8px 12px;border-bottom:1px solid #eee"><strong>' . esc_html( $label ) . '</strong><br>'
+			. '<span style="color:#999;font-size:.9em">' . esc_html( $site['url'] ) . '</span></td>'
+			. '<td style="padding:8px 12px;border-bottom:1px solid #eee">' . esc_html( $freq ) . '</td>'
+			. '<td style="padding:8px 12px;border-bottom:1px solid #eee">' . esc_html( $last_check ) . '</td>'
+			. '<td style="padding:8px 12px;border-bottom:1px solid #eee">' . $status_html . '</td>'
+			. '</tr>';
+	}
+
+	$total   = count( $sites );
+	$summary = sprintf(
+		/* translators: 1: total sites, 2: OK count, 3: KO count */
+		__( '%1$d sites monitored — %2$d OK, %3$d KO', 'paperplane-mail-test' ),
+		$total, $ok_count, $ko_count
+	);
+
+	$subject = sprintf(
+		__( '[Weekly Report] PaperPlane Mail Monitor — %s', 'paperplane-mail-test' ),
+		wp_date( 'd/m/Y' )
+	);
+
+	$body = '<div style="font-family:sans-serif;max-width:700px;color:#1d2327">'
+		. '<h2>' . esc_html__( 'Weekly Mail Monitor Report', 'paperplane-mail-test' ) . '</h2>'
+		. '<p>' . esc_html( $summary ) . '</p>'
+		. '<table style="width:100%;border-collapse:collapse;border:1px solid #eee">'
+		. '<thead><tr style="background:#f6f7f7">'
+		. '<th style="padding:8px 12px;text-align:left">' . esc_html__( 'Site', 'paperplane-mail-test' ) . '</th>'
+		. '<th style="padding:8px 12px;text-align:left">' . esc_html__( 'Frequency', 'paperplane-mail-test' ) . '</th>'
+		. '<th style="padding:8px 12px;text-align:left">' . esc_html__( 'Last check', 'paperplane-mail-test' ) . '</th>'
+		. '<th style="padding:8px 12px;text-align:left">' . esc_html__( 'Status', 'paperplane-mail-test' ) . '</th>'
+		. '</tr></thead>'
+		. '<tbody>' . $rows . '</tbody>'
+		. '</table>'
+		. '<p style="color:#999;font-size:.85em;margin-top:16px">' . esc_html( wp_date( 'd/m/Y H:i' ) ) . '</p>'
+		. '</div>';
+
+	wp_mail( $recipients, $subject, $body, array( 'Content-Type: text/html; charset=UTF-8' ) );
+}
+
 // ─── Admin menu ───────────────────────────────────────────────────────────────
 
 add_action( 'admin_menu', 'pp_mm_register_page' );
@@ -195,6 +310,21 @@ add_action( 'admin_init', 'pp_mm_register_settings' );
 function pp_mm_register_settings() {
 	register_setting( 'pp_mm_settings', PP_MM_OPTION_NOTIFY, array(
 		'sanitize_callback' => 'sanitize_text_field',
+	) );
+	register_setting( 'pp_mm_settings', PP_MM_OPTION_WEEKLY_ENABLED, array(
+		'sanitize_callback' => 'absint',
+	) );
+	register_setting( 'pp_mm_settings', PP_MM_OPTION_WEEKLY_DAY, array(
+		'sanitize_callback' => function( $v ) {
+			$v = (int) $v;
+			return ( $v >= 1 && $v <= 7 ) ? $v : 1;
+		},
+	) );
+	register_setting( 'pp_mm_settings', PP_MM_OPTION_WEEKLY_HOUR, array(
+		'sanitize_callback' => function( $v ) {
+			$v = (int) $v;
+			return ( $v >= 0 && $v <= 23 ) ? $v : 8;
+		},
 	) );
 }
 
@@ -275,9 +405,12 @@ function pp_mm_render_page() {
 		wp_die( esc_html__( 'You do not have sufficient permissions to access this page.', 'paperplane-mail-test' ) );
 	}
 
-	$sites   = get_option( PP_MM_OPTION_SITES, array() );
-	$notify  = get_option( PP_MM_OPTION_NOTIFY, '' );
-	$checked = isset( $_GET['pp_mm_checked'] ) ? (int) $_GET['pp_mm_checked'] : -1;
+	$sites          = get_option( PP_MM_OPTION_SITES, array() );
+	$notify         = get_option( PP_MM_OPTION_NOTIFY, '' );
+	$checked        = isset( $_GET['pp_mm_checked'] ) ? (int) $_GET['pp_mm_checked'] : -1;
+	$weekly_enabled = (int) get_option( PP_MM_OPTION_WEEKLY_ENABLED, 0 );
+	$weekly_day     = (int) get_option( PP_MM_OPTION_WEEKLY_DAY, 1 );
+	$weekly_hour    = (int) get_option( PP_MM_OPTION_WEEKLY_HOUR, 8 );
 	?>
 	<div class="wrap">
 		<h1><?php esc_html_e( 'Site Mail Monitor', 'paperplane-mail-test' ); ?></h1>
@@ -310,6 +443,56 @@ function pp_mm_render_page() {
 							class="regular-text"
 							placeholder="uno@esempio.it, due@esempio.it">
 						<p class="description"><?php esc_html_e( 'Multiple addresses separated by comma.', 'paperplane-mail-test' ); ?></p>
+					</td>
+				</tr>
+			</table>
+			<?php submit_button( __( 'Save', 'paperplane-mail-test' ) ); ?>
+		</form>
+
+		<hr>
+		<h2><?php esc_html_e( 'Weekly report', 'paperplane-mail-test' ); ?></h2>
+		<form method="post" action="options.php">
+			<?php settings_fields( 'pp_mm_settings' ); ?>
+			<table class="form-table" role="presentation">
+				<tr>
+					<th><?php esc_html_e( 'Enable', 'paperplane-mail-test' ); ?></th>
+					<td>
+						<label>
+							<input type="checkbox" name="<?php echo esc_attr( PP_MM_OPTION_WEEKLY_ENABLED ); ?>" value="1" <?php checked( $weekly_enabled, 1 ); ?>>
+							<?php esc_html_e( 'Send a weekly summary email to alert recipients', 'paperplane-mail-test' ); ?>
+						</label>
+					</td>
+				</tr>
+				<tr>
+					<th><label for="pp_mm_weekly_day"><?php esc_html_e( 'Day of the week', 'paperplane-mail-test' ); ?></label></th>
+					<td>
+						<select id="pp_mm_weekly_day" name="<?php echo esc_attr( PP_MM_OPTION_WEEKLY_DAY ); ?>">
+							<?php
+							$days = array(
+								1 => __( 'Monday', 'paperplane-mail-test' ),
+								2 => __( 'Tuesday', 'paperplane-mail-test' ),
+								3 => __( 'Wednesday', 'paperplane-mail-test' ),
+								4 => __( 'Thursday', 'paperplane-mail-test' ),
+								5 => __( 'Friday', 'paperplane-mail-test' ),
+								6 => __( 'Saturday', 'paperplane-mail-test' ),
+								7 => __( 'Sunday', 'paperplane-mail-test' ),
+							);
+							foreach ( $days as $num => $name ) :
+							?>
+								<option value="<?php echo $num; ?>" <?php selected( $weekly_day, $num ); ?>><?php echo esc_html( $name ); ?></option>
+							<?php endforeach; ?>
+						</select>
+					</td>
+				</tr>
+				<tr>
+					<th><label for="pp_mm_weekly_hour"><?php esc_html_e( 'Time', 'paperplane-mail-test' ); ?></label></th>
+					<td>
+						<select id="pp_mm_weekly_hour" name="<?php echo esc_attr( PP_MM_OPTION_WEEKLY_HOUR ); ?>">
+							<?php for ( $h = 0; $h <= 23; $h++ ) : ?>
+								<option value="<?php echo $h; ?>" <?php selected( $weekly_hour, $h ); ?>><?php echo sprintf( '%02d:00', $h ); ?></option>
+							<?php endfor; ?>
+						</select>
+						<p class="description"><?php esc_html_e( 'Based on the timezone set in Settings → General.', 'paperplane-mail-test' ); ?></p>
 					</td>
 				</tr>
 			</table>
