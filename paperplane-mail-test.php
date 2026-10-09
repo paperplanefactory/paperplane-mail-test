@@ -2,7 +2,7 @@
 /**
  * Plugin Name: PaperPlane Mail Test
  * Description: Monitors mail function on client sites. Requires PaperPlane Mail Test Child installed on each site.
- * Version: 1.0.2
+ * Version: 1.0.3
  * Author: Paper Plane Factory
  * Text Domain: paperplane-mail-test
  * Domain Path: /languages
@@ -24,13 +24,13 @@ add_action( 'init', function () {
 	$checker->setBranch( 'main' );
 } );
 
-define( 'PP_MM_OPTION_SITES',           'pp_mm_sites' );
-define( 'PP_MM_OPTION_NOTIFY',          'pp_mm_notify_email' );
-define( 'PP_MM_CRON_HOOK',              'pp_mm_run_checks' );
-define( 'PP_MM_OPTION_WEEKLY_ENABLED',  'pp_mm_weekly_enabled' );
-define( 'PP_MM_OPTION_WEEKLY_DAY',      'pp_mm_weekly_day' );
-define( 'PP_MM_OPTION_WEEKLY_HOUR',     'pp_mm_weekly_hour' );
-define( 'PP_MM_OPTION_WEEKLY_LAST',     'pp_mm_weekly_last_sent' );
+define( 'PP_MM_OPTION_SITES',          'pp_mm_sites' );
+define( 'PP_MM_OPTION_NOTIFY',         'pp_mm_notify_email' );
+define( 'PP_MM_CRON_HOOK',             'pp_mm_run_checks' );
+define( 'PP_MM_OPTION_WEEKLY_ENABLED', 'pp_mm_weekly_enabled' );
+define( 'PP_MM_OPTION_WEEKLY_DAY',     'pp_mm_weekly_day' );
+define( 'PP_MM_OPTION_WEEKLY_HOUR',    'pp_mm_weekly_hour' );
+define( 'PP_MM_OPTION_WEEKLY_LAST',    'pp_mm_weekly_last_sent' );
 
 // ─── i18n ─────────────────────────────────────────────────────────────────────
 
@@ -106,11 +106,11 @@ function pp_mm_run_checks() {
 
 		$result = pp_mm_check_site( $site );
 
-		$prev_status    = $site['last_status'] ?? '';
-		$site['last_check']  = $now;
-		$site['last_status'] = $result['success'] ? 'ok' : 'error';
+		$prev_status          = $site['last_status'] ?? '';
+		$site['last_check']   = $now;
+		$site['last_status']  = $result['success'] ? 'ok' : 'error';
 		$site['last_message'] = $result['message'] ?? '';
-		$updated = true;
+		$updated              = true;
 
 		// Notifica solo al passaggio da OK a KO (o primo KO)
 		if ( ! $result['success'] && $prev_status !== 'error' ) {
@@ -192,14 +192,12 @@ function pp_mm_maybe_send_weekly_report() {
 	$hour = (int) get_option( PP_MM_OPTION_WEEKLY_HOUR, 8 );
 	$last = (int) get_option( PP_MM_OPTION_WEEKLY_LAST, 0 );
 
-	// Non inviare se già inviato nelle ultime 6 giorni
 	if ( ( time() - $last ) < 6 * DAY_IN_SECONDS ) {
 		return;
 	}
 
-	// Confronta giorno e ora nel fuso orario di WordPress
-	$tz      = wp_timezone();
-	$now_dt  = new DateTime( 'now', $tz );
+	$tz       = wp_timezone();
+	$now_dt   = new DateTime( 'now', $tz );
 	$cur_day  = (int) $now_dt->format( 'N' ); // 1=lunedì … 7=domenica
 	$cur_hour = (int) $now_dt->format( 'G' ); // 0–23
 
@@ -295,13 +293,30 @@ function pp_mm_send_weekly_report() {
 add_action( 'admin_menu', 'pp_mm_register_page' );
 
 function pp_mm_register_page() {
-	add_submenu_page(
-		'options-general.php',
-		__( 'Site Mail Monitor', 'paperplane-mail-test' ),
+	add_menu_page(
+		__( 'Mail Monitor', 'paperplane-mail-test' ),
 		__( 'Mail Monitor', 'paperplane-mail-test' ),
 		'manage_options',
 		'pp-mail-monitor',
-		'pp_mm_render_page'
+		'pp_mm_render_sites_page',
+		'dashicons-email-alt',
+		30
+	);
+	add_submenu_page(
+		'pp-mail-monitor',
+		__( 'Monitored Sites', 'paperplane-mail-test' ),
+		__( 'Monitored Sites', 'paperplane-mail-test' ),
+		'manage_options',
+		'pp-mail-monitor',
+		'pp_mm_render_sites_page'
+	);
+	add_submenu_page(
+		'pp-mail-monitor',
+		__( 'Settings', 'paperplane-mail-test' ),
+		__( 'Settings', 'paperplane-mail-test' ),
+		'manage_options',
+		'pp-mail-monitor-settings',
+		'pp_mm_render_settings_page'
 	);
 }
 
@@ -337,12 +352,13 @@ function pp_mm_handle_actions() {
 		return;
 	}
 
-	$action = $_POST['pp_mm_action'] ?? '';
+	$action = $_POST['pp_mm_action'] ?? $_GET['pp_mm_action'] ?? '';
 
+	// ── Aggiungi sito ──────────────────────────────────────────────────────────
 	if ( $action === 'add_site' && check_admin_referer( 'pp_mm_add' ) ) {
 		$raw_url = trim( $_POST['pp_mm_url'] ?? '' );
 		if ( ! pp_mm_is_url_allowed( $raw_url ) ) {
-			wp_safe_redirect( add_query_arg( 'pp_mm_url_error', '1', admin_url( 'options-general.php?page=pp-mail-monitor' ) ) );
+			wp_safe_redirect( add_query_arg( 'pp_mm_url_error', '1', admin_url( 'admin.php?page=pp-mail-monitor' ) ) );
 			exit;
 		}
 		$sites   = get_option( PP_MM_OPTION_SITES, array() );
@@ -358,10 +374,11 @@ function pp_mm_handle_actions() {
 			'last_message' => '',
 		);
 		update_option( PP_MM_OPTION_SITES, $sites );
-		wp_safe_redirect( add_query_arg( 'pp_mm_saved', '1', admin_url( 'options-general.php?page=pp-mail-monitor' ) ) );
+		wp_safe_redirect( add_query_arg( 'pp_mm_saved', '1', admin_url( 'admin.php?page=pp-mail-monitor' ) ) );
 		exit;
 	}
 
+	// ── Elimina sito ───────────────────────────────────────────────────────────
 	if ( $action === 'delete_site' && check_admin_referer( 'pp_mm_delete' ) ) {
 		$idx   = (int) ( $_POST['pp_mm_idx'] ?? -1 );
 		$sites = get_option( PP_MM_OPTION_SITES, array() );
@@ -369,16 +386,17 @@ function pp_mm_handle_actions() {
 			array_splice( $sites, $idx, 1 );
 			update_option( PP_MM_OPTION_SITES, array_values( $sites ) );
 		}
-		wp_safe_redirect( admin_url( 'options-general.php?page=pp-mail-monitor' ) );
+		wp_safe_redirect( admin_url( 'admin.php?page=pp-mail-monitor' ) );
 		exit;
 	}
 
+	// ── Controlla ora ──────────────────────────────────────────────────────────
 	if ( $action === 'check_now' && check_admin_referer( 'pp_mm_check' ) ) {
 		$idx   = (int) ( $_POST['pp_mm_idx'] ?? -1 );
 		$sites = get_option( PP_MM_OPTION_SITES, array() );
 		if ( isset( $sites[ $idx ] ) ) {
-			$result = pp_mm_check_site( $sites[ $idx ] );
-			$prev_status = $sites[ $idx ]['last_status'] ?? '';
+			$result                        = pp_mm_check_site( $sites[ $idx ] );
+			$prev_status                   = $sites[ $idx ]['last_status'] ?? '';
 			$sites[ $idx ]['last_check']   = time();
 			$sites[ $idx ]['last_status']  = $result['success'] ? 'ok' : 'error';
 			$sites[ $idx ]['last_message'] = $result['message'] ?? '';
@@ -387,33 +405,133 @@ function pp_mm_handle_actions() {
 			}
 			update_option( PP_MM_OPTION_SITES, $sites );
 		}
-		wp_safe_redirect( add_query_arg( 'pp_mm_checked', $idx, admin_url( 'options-general.php?page=pp-mail-monitor' ) ) );
+		wp_safe_redirect( add_query_arg( 'pp_mm_checked', $idx, admin_url( 'admin.php?page=pp-mail-monitor' ) ) );
+		exit;
+	}
+
+	// ── Export siti ────────────────────────────────────────────────────────────
+	if ( $action === 'export_sites' && check_admin_referer( 'pp_mm_export' ) ) {
+		$sites        = get_option( PP_MM_OPTION_SITES, array() );
+		$export_sites = array_map( function( $site ) {
+			return array(
+				'label'     => $site['label'] ?? '',
+				'url'       => $site['url'] ?? '',
+				'secret'    => $site['secret'] ?? '',
+				'frequency' => $site['frequency'] ?? 'daily',
+			);
+		}, $sites );
+
+		$export = array(
+			'version'     => '1.0',
+			'exported_at' => wp_date( 'c' ),
+			'plugin'      => 'paperplane-mail-test',
+			'sites'       => $export_sites,
+		);
+
+		$filename = 'pp-mail-monitor-export-' . wp_date( 'Y-m-d' ) . '.json';
+		header( 'Content-Type: application/json; charset=utf-8' );
+		header( 'Content-Disposition: attachment; filename="' . $filename . '"' );
+		header( 'Cache-Control: no-cache, no-store, must-revalidate' );
+		header( 'Pragma: no-cache' );
+		echo wp_json_encode( $export, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
+		exit;
+	}
+
+	// ── Import siti ────────────────────────────────────────────────────────────
+	if ( $action === 'import_sites' && check_admin_referer( 'pp_mm_import' ) ) {
+		$settings_url = admin_url( 'admin.php?page=pp-mail-monitor-settings' );
+		$file         = $_FILES['pp_mm_import_file'] ?? null;
+
+		if ( ! $file || $file['error'] !== UPLOAD_ERR_OK ) {
+			wp_safe_redirect( add_query_arg( 'pp_mm_import_error', 'upload', $settings_url ) );
+			exit;
+		}
+		if ( $file['size'] > 256 * 1024 ) {
+			wp_safe_redirect( add_query_arg( 'pp_mm_import_error', 'size', $settings_url ) );
+			exit;
+		}
+		if ( strtolower( pathinfo( $file['name'], PATHINFO_EXTENSION ) ) !== 'json' ) {
+			wp_safe_redirect( add_query_arg( 'pp_mm_import_error', 'type', $settings_url ) );
+			exit;
+		}
+
+		$content = file_get_contents( $file['tmp_name'] );
+		$data    = json_decode( $content, true );
+
+		if (
+			! is_array( $data ) ||
+			( $data['plugin'] ?? '' ) !== 'paperplane-mail-test' ||
+			! isset( $data['sites'] ) ||
+			! is_array( $data['sites'] )
+		) {
+			wp_safe_redirect( add_query_arg( 'pp_mm_import_error', 'format', $settings_url ) );
+			exit;
+		}
+
+		$mode     = in_array( $_POST['pp_mm_import_mode'] ?? '', array( 'replace', 'merge' ), true )
+			? $_POST['pp_mm_import_mode']
+			: 'replace';
+		$imported = array();
+
+		foreach ( $data['sites'] as $raw ) {
+			if ( ! is_array( $raw ) ) {
+				continue;
+			}
+			$url    = esc_url_raw( trim( $raw['url'] ?? '' ) );
+			$parsed = wp_parse_url( $url );
+			if ( ! $parsed || ( $parsed['scheme'] ?? '' ) !== 'https' || empty( $parsed['host'] ) ) {
+				continue;
+			}
+			$freq = $raw['frequency'] ?? 'daily';
+			if ( ! in_array( $freq, array( 'hourly', 'daily' ), true ) ) {
+				$freq = 'daily';
+			}
+			$imported[] = array(
+				'label'        => sanitize_text_field( $raw['label'] ?? '' ),
+				'url'          => $url,
+				'secret'       => sanitize_text_field( $raw['secret'] ?? '' ),
+				'frequency'    => $freq,
+				'last_check'   => 0,
+				'last_status'  => '',
+				'last_message' => '',
+			);
+		}
+
+		if ( empty( $imported ) ) {
+			wp_safe_redirect( add_query_arg( 'pp_mm_import_error', 'empty', $settings_url ) );
+			exit;
+		}
+
+		if ( $mode === 'replace' ) {
+			update_option( PP_MM_OPTION_SITES, $imported );
+		} else {
+			$existing = get_option( PP_MM_OPTION_SITES, array() );
+			update_option( PP_MM_OPTION_SITES, array_merge( $existing, $imported ) );
+		}
+
+		wp_safe_redirect( add_query_arg( 'pp_mm_imported', count( $imported ), admin_url( 'admin.php?page=pp-mail-monitor' ) ) );
 		exit;
 	}
 }
 
-// ─── Pulizia al disattivazione ────────────────────────────────────────────────
+// ─── Pulizia alla disattivazione ──────────────────────────────────────────────
 
 register_deactivation_hook( __FILE__, function () {
 	wp_clear_scheduled_hook( PP_MM_CRON_HOOK );
 } );
 
-// ─── Pagina admin ─────────────────────────────────────────────────────────────
+// ─── Pagina: Siti monitorati ──────────────────────────────────────────────────
 
-function pp_mm_render_page() {
+function pp_mm_render_sites_page() {
 	if ( ! current_user_can( 'manage_options' ) ) {
 		wp_die( esc_html__( 'You do not have sufficient permissions to access this page.', 'paperplane-mail-test' ) );
 	}
 
-	$sites          = get_option( PP_MM_OPTION_SITES, array() );
-	$notify         = get_option( PP_MM_OPTION_NOTIFY, '' );
-	$checked        = isset( $_GET['pp_mm_checked'] ) ? (int) $_GET['pp_mm_checked'] : -1;
-	$weekly_enabled = (int) get_option( PP_MM_OPTION_WEEKLY_ENABLED, 0 );
-	$weekly_day     = (int) get_option( PP_MM_OPTION_WEEKLY_DAY, 1 );
-	$weekly_hour    = (int) get_option( PP_MM_OPTION_WEEKLY_HOUR, 8 );
+	$sites   = get_option( PP_MM_OPTION_SITES, array() );
+	$checked = isset( $_GET['pp_mm_checked'] ) ? (int) $_GET['pp_mm_checked'] : -1;
 	?>
 	<div class="wrap">
-		<h1><?php esc_html_e( 'Site Mail Monitor', 'paperplane-mail-test' ); ?></h1>
+		<h1><?php esc_html_e( 'Monitored Sites', 'paperplane-mail-test' ); ?></h1>
 		<p><?php printf( __( 'Periodically checks that the mail function works on each site. Requires the %s plugin installed on each monitored site.', 'paperplane-mail-test' ), '<strong>PaperPlane Mail Test Child</strong>' ); ?></p>
 
 		<?php if ( isset( $_GET['pp_mm_saved'] ) ) : ?>
@@ -421,6 +539,15 @@ function pp_mm_render_page() {
 		<?php endif; ?>
 		<?php if ( isset( $_GET['pp_mm_url_error'] ) ) : ?>
 			<div class="notice notice-error is-dismissible"><p><?php esc_html_e( 'Invalid URL. Only https:// addresses pointing to public sites are accepted.', 'paperplane-mail-test' ); ?></p></div>
+		<?php endif; ?>
+		<?php if ( isset( $_GET['pp_mm_imported'] ) ) : ?>
+			<div class="notice notice-success is-dismissible"><p>
+				<?php printf(
+					/* translators: %d number of imported sites */
+					__( '%d sites imported successfully.', 'paperplane-mail-test' ),
+					(int) $_GET['pp_mm_imported']
+				); ?>
+			</p></div>
 		<?php endif; ?>
 		<?php if ( $checked >= 0 && isset( $sites[ $checked ] ) ) :
 			$s = $sites[ $checked ]; ?>
@@ -430,77 +557,7 @@ function pp_mm_render_page() {
 			</div>
 		<?php endif; ?>
 
-		<h2><?php esc_html_e( 'KO notification email', 'paperplane-mail-test' ); ?></h2>
-		<form method="post" action="options.php">
-			<?php settings_fields( 'pp_mm_settings' ); ?>
-			<table class="form-table" role="presentation">
-				<tr>
-					<th><label for="pp_mm_notify"><?php esc_html_e( 'Alert recipient', 'paperplane-mail-test' ); ?></label></th>
-					<td>
-						<input type="text" id="pp_mm_notify"
-							name="<?php echo esc_attr( PP_MM_OPTION_NOTIFY ); ?>"
-							value="<?php echo esc_attr( $notify ); ?>"
-							class="regular-text"
-							placeholder="uno@esempio.it, due@esempio.it">
-						<p class="description"><?php esc_html_e( 'Multiple addresses separated by comma.', 'paperplane-mail-test' ); ?></p>
-					</td>
-				</tr>
-			</table>
-			<?php submit_button( __( 'Save', 'paperplane-mail-test' ) ); ?>
-		</form>
-
-		<hr>
-		<h2><?php esc_html_e( 'Weekly report', 'paperplane-mail-test' ); ?></h2>
-		<form method="post" action="options.php">
-			<?php settings_fields( 'pp_mm_settings' ); ?>
-			<table class="form-table" role="presentation">
-				<tr>
-					<th><?php esc_html_e( 'Enable', 'paperplane-mail-test' ); ?></th>
-					<td>
-						<label>
-							<input type="checkbox" name="<?php echo esc_attr( PP_MM_OPTION_WEEKLY_ENABLED ); ?>" value="1" <?php checked( $weekly_enabled, 1 ); ?>>
-							<?php esc_html_e( 'Send a weekly summary email to alert recipients', 'paperplane-mail-test' ); ?>
-						</label>
-					</td>
-				</tr>
-				<tr>
-					<th><label for="pp_mm_weekly_day"><?php esc_html_e( 'Day of the week', 'paperplane-mail-test' ); ?></label></th>
-					<td>
-						<select id="pp_mm_weekly_day" name="<?php echo esc_attr( PP_MM_OPTION_WEEKLY_DAY ); ?>">
-							<?php
-							$days = array(
-								1 => __( 'Monday', 'paperplane-mail-test' ),
-								2 => __( 'Tuesday', 'paperplane-mail-test' ),
-								3 => __( 'Wednesday', 'paperplane-mail-test' ),
-								4 => __( 'Thursday', 'paperplane-mail-test' ),
-								5 => __( 'Friday', 'paperplane-mail-test' ),
-								6 => __( 'Saturday', 'paperplane-mail-test' ),
-								7 => __( 'Sunday', 'paperplane-mail-test' ),
-							);
-							foreach ( $days as $num => $name ) :
-							?>
-								<option value="<?php echo $num; ?>" <?php selected( $weekly_day, $num ); ?>><?php echo esc_html( $name ); ?></option>
-							<?php endforeach; ?>
-						</select>
-					</td>
-				</tr>
-				<tr>
-					<th><label for="pp_mm_weekly_hour"><?php esc_html_e( 'Time', 'paperplane-mail-test' ); ?></label></th>
-					<td>
-						<select id="pp_mm_weekly_hour" name="<?php echo esc_attr( PP_MM_OPTION_WEEKLY_HOUR ); ?>">
-							<?php for ( $h = 0; $h <= 23; $h++ ) : ?>
-								<option value="<?php echo $h; ?>" <?php selected( $weekly_hour, $h ); ?>><?php echo sprintf( '%02d:00', $h ); ?></option>
-							<?php endfor; ?>
-						</select>
-						<p class="description"><?php esc_html_e( 'Based on the timezone set in Settings → General.', 'paperplane-mail-test' ); ?></p>
-					</td>
-				</tr>
-			</table>
-			<?php submit_button( __( 'Save', 'paperplane-mail-test' ) ); ?>
-		</form>
-
-		<hr>
-		<h2><?php esc_html_e( 'Monitored sites', 'paperplane-mail-test' ); ?></h2>
+		<h2><?php esc_html_e( 'Sites', 'paperplane-mail-test' ); ?></h2>
 
 		<?php
 		if ( ! empty( $sites ) ) {
@@ -570,7 +627,7 @@ function pp_mm_render_page() {
 			<table class="form-table" role="presentation">
 				<tr>
 					<th><label for="pp_mm_label"><?php esc_html_e( 'Name / label', 'paperplane-mail-test' ); ?></label></th>
-					<td><input type="text" id="pp_mm_label" name="pp_mm_label" class="regular-text" placeholder="Es. Pinsami"></td>
+					<td><input type="text" id="pp_mm_label" name="pp_mm_label" class="regular-text" placeholder="Es. Client Site"></td>
 				</tr>
 				<tr>
 					<th><label for="pp_mm_url"><?php esc_html_e( 'Site URL', 'paperplane-mail-test' ); ?></label></th>
@@ -597,6 +654,142 @@ function pp_mm_render_page() {
 				</tr>
 			</table>
 			<?php submit_button( __( 'Add site', 'paperplane-mail-test' ) ); ?>
+		</form>
+	</div>
+	<?php
+}
+
+// ─── Pagina: Impostazioni ─────────────────────────────────────────────────────
+
+function pp_mm_render_settings_page() {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_die( esc_html__( 'You do not have sufficient permissions to access this page.', 'paperplane-mail-test' ) );
+	}
+
+	$notify         = get_option( PP_MM_OPTION_NOTIFY, '' );
+	$weekly_enabled = (int) get_option( PP_MM_OPTION_WEEKLY_ENABLED, 0 );
+	$weekly_day     = (int) get_option( PP_MM_OPTION_WEEKLY_DAY, 1 );
+	$weekly_hour    = (int) get_option( PP_MM_OPTION_WEEKLY_HOUR, 8 );
+
+	$import_errors = array(
+		'upload' => __( 'Upload error. Please try again.', 'paperplane-mail-test' ),
+		'size'   => __( 'File too large. Maximum size is 256 KB.', 'paperplane-mail-test' ),
+		'type'   => __( 'Invalid file type. Please upload a .json file.', 'paperplane-mail-test' ),
+		'format' => __( 'Invalid file format. The file does not appear to be a valid PaperPlane Mail Monitor export.', 'paperplane-mail-test' ),
+		'empty'  => __( 'No valid sites found in the file.', 'paperplane-mail-test' ),
+	);
+	$import_error_key = sanitize_key( $_GET['pp_mm_import_error'] ?? '' );
+	?>
+	<div class="wrap">
+		<h1><?php esc_html_e( 'Mail Monitor — Settings', 'paperplane-mail-test' ); ?></h1>
+
+		<?php if ( $import_error_key && isset( $import_errors[ $import_error_key ] ) ) : ?>
+			<div class="notice notice-error is-dismissible"><p><?php echo esc_html( $import_errors[ $import_error_key ] ); ?></p></div>
+		<?php endif; ?>
+
+		<h2><?php esc_html_e( 'KO notification email', 'paperplane-mail-test' ); ?></h2>
+		<form method="post" action="options.php">
+			<?php settings_fields( 'pp_mm_settings' ); ?>
+			<table class="form-table" role="presentation">
+				<tr>
+					<th><label for="pp_mm_notify"><?php esc_html_e( 'Alert recipient', 'paperplane-mail-test' ); ?></label></th>
+					<td>
+						<input type="text" id="pp_mm_notify"
+							name="<?php echo esc_attr( PP_MM_OPTION_NOTIFY ); ?>"
+							value="<?php echo esc_attr( $notify ); ?>"
+							class="regular-text"
+							placeholder="uno@esempio.it, due@esempio.it">
+						<p class="description"><?php esc_html_e( 'Multiple addresses separated by comma.', 'paperplane-mail-test' ); ?></p>
+					</td>
+				</tr>
+			</table>
+
+			<h2><?php esc_html_e( 'Weekly report', 'paperplane-mail-test' ); ?></h2>
+			<table class="form-table" role="presentation">
+				<tr>
+					<th><?php esc_html_e( 'Enable', 'paperplane-mail-test' ); ?></th>
+					<td>
+						<label>
+							<input type="checkbox" name="<?php echo esc_attr( PP_MM_OPTION_WEEKLY_ENABLED ); ?>" value="1" <?php checked( $weekly_enabled, 1 ); ?>>
+							<?php esc_html_e( 'Send a weekly summary email to alert recipients', 'paperplane-mail-test' ); ?>
+						</label>
+					</td>
+				</tr>
+				<tr>
+					<th><label for="pp_mm_weekly_day"><?php esc_html_e( 'Day of the week', 'paperplane-mail-test' ); ?></label></th>
+					<td>
+						<select id="pp_mm_weekly_day" name="<?php echo esc_attr( PP_MM_OPTION_WEEKLY_DAY ); ?>">
+							<?php
+							$days = array(
+								1 => __( 'Monday', 'paperplane-mail-test' ),
+								2 => __( 'Tuesday', 'paperplane-mail-test' ),
+								3 => __( 'Wednesday', 'paperplane-mail-test' ),
+								4 => __( 'Thursday', 'paperplane-mail-test' ),
+								5 => __( 'Friday', 'paperplane-mail-test' ),
+								6 => __( 'Saturday', 'paperplane-mail-test' ),
+								7 => __( 'Sunday', 'paperplane-mail-test' ),
+							);
+							foreach ( $days as $num => $name ) :
+							?>
+								<option value="<?php echo $num; ?>" <?php selected( $weekly_day, $num ); ?>><?php echo esc_html( $name ); ?></option>
+							<?php endforeach; ?>
+						</select>
+					</td>
+				</tr>
+				<tr>
+					<th><label for="pp_mm_weekly_hour"><?php esc_html_e( 'Time', 'paperplane-mail-test' ); ?></label></th>
+					<td>
+						<select id="pp_mm_weekly_hour" name="<?php echo esc_attr( PP_MM_OPTION_WEEKLY_HOUR ); ?>">
+							<?php for ( $h = 0; $h <= 23; $h++ ) : ?>
+								<option value="<?php echo $h; ?>" <?php selected( $weekly_hour, $h ); ?>><?php echo sprintf( '%02d:00', $h ); ?></option>
+							<?php endfor; ?>
+						</select>
+						<p class="description"><?php esc_html_e( 'Based on the timezone set in Settings → General.', 'paperplane-mail-test' ); ?></p>
+					</td>
+				</tr>
+			</table>
+
+			<?php submit_button( __( 'Save', 'paperplane-mail-test' ) ); ?>
+		</form>
+
+		<hr>
+		<h2><?php esc_html_e( 'Export / Import', 'paperplane-mail-test' ); ?></h2>
+		<p><?php esc_html_e( 'Use export and import to move the list of monitored sites to another installation.', 'paperplane-mail-test' ); ?></p>
+
+		<h3><?php esc_html_e( 'Export', 'paperplane-mail-test' ); ?></h3>
+		<p><?php esc_html_e( 'Downloads a JSON file with all monitored sites and their secret keys. Keep this file safe.', 'paperplane-mail-test' ); ?></p>
+		<form method="post">
+			<?php wp_nonce_field( 'pp_mm_export' ); ?>
+			<input type="hidden" name="pp_mm_action" value="export_sites">
+			<?php submit_button( __( 'Download export file', 'paperplane-mail-test' ), 'secondary' ); ?>
+		</form>
+
+		<h3><?php esc_html_e( 'Import', 'paperplane-mail-test' ); ?></h3>
+		<p><?php esc_html_e( 'Upload an export file generated by this plugin. The secret keys in the file must already be configured on the respective client sites.', 'paperplane-mail-test' ); ?></p>
+		<form method="post" enctype="multipart/form-data">
+			<?php wp_nonce_field( 'pp_mm_import' ); ?>
+			<input type="hidden" name="pp_mm_action" value="import_sites">
+			<table class="form-table" role="presentation">
+				<tr>
+					<th><label for="pp_mm_import_file"><?php esc_html_e( 'Export file (.json)', 'paperplane-mail-test' ); ?></label></th>
+					<td><input type="file" id="pp_mm_import_file" name="pp_mm_import_file" accept=".json"></td>
+				</tr>
+				<tr>
+					<th><?php esc_html_e( 'Import mode', 'paperplane-mail-test' ); ?></th>
+					<td>
+						<label style="display:block;margin-bottom:6px">
+							<input type="radio" name="pp_mm_import_mode" value="replace" checked>
+							<?php esc_html_e( 'Replace all existing sites', 'paperplane-mail-test' ); ?>
+						</label>
+						<label>
+							<input type="radio" name="pp_mm_import_mode" value="merge">
+							<?php esc_html_e( 'Add to existing sites', 'paperplane-mail-test' ); ?>
+						</label>
+						<p class="description" style="color:#d63638"><?php esc_html_e( '"Replace" will permanently delete all currently monitored sites.', 'paperplane-mail-test' ); ?></p>
+					</td>
+				</tr>
+			</table>
+			<?php submit_button( __( 'Import', 'paperplane-mail-test' ), 'secondary' ); ?>
 		</form>
 	</div>
 	<?php
