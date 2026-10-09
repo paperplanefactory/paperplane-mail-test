@@ -319,6 +319,13 @@ function pp_mm_render_page() {
 		<hr>
 		<h2><?php esc_html_e( 'Monitored sites', 'paperplane-mail-test' ); ?></h2>
 
+		<?php
+		if ( ! empty( $sites ) ) {
+			usort( $sites, function( $a, $b ) {
+				return strcasecmp( $a['label'] ?: $a['url'], $b['label'] ?: $b['url'] );
+			} );
+		}
+		?>
 		<?php if ( ! empty( $sites ) ) : ?>
 		<table class="widefat striped" style="margin-bottom:24px">
 			<thead>
@@ -333,7 +340,7 @@ function pp_mm_render_page() {
 			<tbody>
 			<?php foreach ( $sites as $i => $site ) :
 				$status     = $site['last_status'] ?? '';
-				$last_check = $site['last_check'] ? date_i18n( 'd/m/Y H:i', $site['last_check'] ) : '—';
+				$last_check = $site['last_check'] ? wp_date( 'd/m/Y H:i', $site['last_check'] ) : '—';
 				$color      = $status === 'ok' ? '#46b450' : ( $status === 'error' ? '#d63638' : '#999' );
 				$label_st   = $status === 'ok' ? '✔ OK' : ( $status === 'error' ? '✖ KO' : '—' );
 			?>
