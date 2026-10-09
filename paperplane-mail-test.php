@@ -2,7 +2,7 @@
 /**
  * Plugin Name: PaperPlane Mail Test
  * Description: Monitors mail function on client sites. Requires PaperPlane Mail Test Child installed on each site.
- * Version: 1.0.6
+ * Version: 1.0.7
  * Author: Paper Plane Factory
  * Text Domain: paperplane-mail-test
  * Domain Path: /languages
@@ -32,6 +32,72 @@ define( 'PP_MM_OPTION_WEEKLY_DAY',     'pp_mm_weekly_day' );
 define( 'PP_MM_OPTION_WEEKLY_HOUR',    'pp_mm_weekly_hour' );
 define( 'PP_MM_OPTION_WEEKLY_LAST',    'pp_mm_weekly_last_sent' );
 define( 'PP_MM_OPTION_SILENT_TEST',   'pp_mm_silent_test_email' );
+
+// ─── Cifratura chiavi segrete ─────────────────────────────────────────────────
+
+register_activation_hook( __FILE__, function () {
+	if ( ! extension_loaded( 'openssl' ) ) {
+		wp_die( esc_html__( 'PaperPlane Mail Test requires the PHP OpenSSL extension. Please enable it on your server and try again.', 'paperplane-mail-test' ) );
+	}
+} );
+
+function pp_mm_get_encryption_key(): string {
+	$salt = defined( 'AUTH_KEY' ) ? AUTH_KEY : ( defined( 'SECURE_AUTH_KEY' ) ? SECURE_AUTH_KEY : '' );
+	if ( ! $salt ) {
+		$salt = get_option( 'siteurl', 'pp_mm_fallback' );
+	}
+	return hash( 'sha256', $salt . 'pp_mm_v1', true ); // 32 bytes per AES-256
+}
+
+function pp_mm_encrypt( string $plaintext ): string {
+	if ( ! extension_loaded( 'openssl' ) || $plaintext === '' ) {
+		return $plaintext;
+	}
+	$key = pp_mm_get_encryption_key();
+	$iv  = openssl_random_pseudo_bytes( 16 );
+	$enc = openssl_encrypt( $plaintext, 'AES-256-CBC', $key, OPENSSL_RAW_DATA, $iv );
+	if ( $enc === false ) {
+		return $plaintext;
+	}
+	return 'enc1:' . base64_encode( $iv . $enc );
+}
+
+function pp_mm_decrypt( string $ciphertext ): string {
+	if ( ! str_starts_with( $ciphertext, 'enc1:' ) ) {
+		return $ciphertext; // plaintext legacy o vuoto
+	}
+	if ( ! extension_loaded( 'openssl' ) ) {
+		return '';
+	}
+	$key = pp_mm_get_encryption_key();
+	$raw = base64_decode( substr( $ciphertext, 5 ) );
+	if ( strlen( $raw ) <= 16 ) {
+		return '';
+	}
+	$iv  = substr( $raw, 0, 16 );
+	$enc = substr( $raw, 16 );
+	$dec = openssl_decrypt( $enc, 'AES-256-CBC', $key, OPENSSL_RAW_DATA, $iv );
+	return $dec !== false ? $dec : '';
+}
+
+// Migrazione one-time: cifra i segreti già salvati in chiaro.
+add_action( 'admin_init', function () {
+	if ( get_option( 'pp_mm_secrets_encrypted', 0 ) ) {
+		return;
+	}
+	$sites = get_option( PP_MM_OPTION_SITES, array() );
+	if ( ! empty( $sites ) ) {
+		foreach ( $sites as &$site ) {
+			$secret = $site['secret'] ?? '';
+			if ( $secret && ! str_starts_with( $secret, 'enc1:' ) ) {
+				$site['secret'] = pp_mm_encrypt( $secret );
+			}
+		}
+		unset( $site );
+		update_option( PP_MM_OPTION_SITES, $sites );
+	}
+	update_option( 'pp_mm_secrets_encrypted', 1 );
+} );
 
 // ─── i18n ─────────────────────────────────────────────────────────────────────
 
@@ -133,7 +199,7 @@ function pp_mm_run_checks() {
  */
 function pp_mm_check_site( array $site, string $test_email = '' ) {
 	$url    = trailingslashit( $site['url'] ) . 'wp-json/pp-mail-test/v1/check';
-	$secret = $site['secret'] ?? '';
+	$secret = pp_mm_decrypt( $site['secret'] ?? '' );
 
 	$body = array( 'pp_secret' => $secret );
 	if ( $test_email ) {
@@ -369,7 +435,7 @@ function pp_mm_handle_actions() {
 		$sites[] = array(
 			'label'        => sanitize_text_field( $_POST['pp_mm_label'] ?? '' ),
 			'url'          => esc_url_raw( $raw_url ),
-			'secret'       => sanitize_text_field( $_POST['pp_mm_secret'] ?? '' ),
+			'secret'       => pp_mm_encrypt( sanitize_text_field( $_POST['pp_mm_secret'] ?? '' ) ),
 			'frequency'    => in_array( $_POST['pp_mm_frequency'] ?? '', array( 'hourly', 'daily' ), true )
 				? $_POST['pp_mm_frequency']
 				: 'daily',
@@ -420,7 +486,7 @@ function pp_mm_handle_actions() {
 			return array(
 				'label'     => $site['label'] ?? '',
 				'url'       => $site['url'] ?? '',
-				'secret'    => $site['secret'] ?? '',
+				'secret'    => pp_mm_decrypt( $site['secret'] ?? '' ),
 				'frequency' => $site['frequency'] ?? 'daily',
 			);
 		}, $sites );
@@ -493,7 +559,7 @@ function pp_mm_handle_actions() {
 			$imported[] = array(
 				'label'        => sanitize_text_field( $raw['label'] ?? '' ),
 				'url'          => $url,
-				'secret'       => sanitize_text_field( $raw['secret'] ?? '' ),
+				'secret'       => pp_mm_encrypt( sanitize_text_field( $raw['secret'] ?? '' ) ),
 				'frequency'    => $freq,
 				'last_check'   => 0,
 				'last_status'  => '',
