@@ -2,7 +2,7 @@
 /**
  * Plugin Name: PaperPlane Mail Test
  * Description: Monitors mail function on client sites. Requires PaperPlane Mail Test Child installed on each site.
- * Version: 1.0.8
+ * Version: 1.0.9
  * Author: Paper Plane Factory
  * Text Domain: paperplane-mail-test
  * Domain Path: /languages
@@ -244,7 +244,7 @@ function pp_mm_send_alert( array $site, string $message ) {
 	$body    = '<p>' . sprintf( __( 'The mail function test on %s failed.', 'paperplane-mail-test' ), '<strong>' . esc_html( $label ) . '</strong>' ) . '</p>'
 		. '<p><strong>' . __( 'URL:', 'paperplane-mail-test' ) . '</strong> ' . esc_html( $site['url'] ) . '</p>'
 		. '<p><strong>' . __( 'Error:', 'paperplane-mail-test' ) . '</strong> ' . esc_html( $message ) . '</p>'
-		. '<p><strong>' . __( 'Date:', 'paperplane-mail-test' ) . '</strong> ' . date_i18n( 'd/m/Y H:i' ) . '</p>';
+		. '<p><strong>' . __( 'Date:', 'paperplane-mail-test' ) . '</strong> ' . date_i18n( 'Y/m/d H:i' ) . '</p>';
 	wp_mail( $recipients, $subject, $body, array( 'Content-Type: text/html; charset=UTF-8' ) );
 }
 
@@ -298,7 +298,7 @@ function pp_mm_send_weekly_report() {
 	foreach ( $sites as $site ) {
 		$label      = $site['label'] ?: $site['url'];
 		$status     = $site['last_status'] ?? '';
-		$last_check = $site['last_check'] ? wp_date( 'd/m/Y H:i', $site['last_check'] ) : '—';
+		$last_check = $site['last_check'] ? wp_date( 'Y/m/d H:i', $site['last_check'] ) : '—';
 		$freq       = $site['frequency'] === 'hourly'
 			? __( 'Every hour', 'paperplane-mail-test' )
 			: __( 'Every day', 'paperplane-mail-test' );
@@ -334,7 +334,7 @@ function pp_mm_send_weekly_report() {
 
 	$subject = sprintf(
 		__( '[Weekly Report] PaperPlane Mail Monitor — %s', 'paperplane-mail-test' ),
-		wp_date( 'd/m/Y' )
+		wp_date( 'Y/m/d' )
 	);
 
 	$body = '<div style="font-family:sans-serif;max-width:700px;color:#1d2327">'
@@ -349,7 +349,7 @@ function pp_mm_send_weekly_report() {
 		. '</tr></thead>'
 		. '<tbody>' . $rows . '</tbody>'
 		. '</table>'
-		. '<p style="color:#999;font-size:.85em;margin-top:16px">' . esc_html( wp_date( 'd/m/Y H:i' ) ) . '</p>'
+		. '<p style="color:#999;font-size:.85em;margin-top:16px">' . esc_html( wp_date( 'Y/m/d H:i' ) ) . '</p>'
 		. '</div>';
 
 	wp_mail( $recipients, $subject, $body, array( 'Content-Type: text/html; charset=UTF-8' ) );
@@ -659,7 +659,7 @@ function pp_mm_render_sites_page() {
 			<tbody>
 			<?php foreach ( $sites as $i => $site ) :
 				$status     = $site['last_status'] ?? '';
-				$last_check = $site['last_check'] ? wp_date( 'd/m/Y H:i', $site['last_check'] ) : '—';
+				$last_check = $site['last_check'] ? wp_date( 'Y/m/d H:i', $site['last_check'] ) : '—';
 				$color      = $status === 'ok' ? '#46b450' : ( $status === 'error' ? '#d63638' : '#999' );
 				$label_st   = $status === 'ok' ? '✔ OK' : ( $status === 'error' ? '✖ KO' : '—' );
 
@@ -670,7 +670,7 @@ function pp_mm_render_sites_page() {
 				} elseif ( $last_ts + $interval <= time() ) {
 					$next_check = esc_html__( 'Soon', 'paperplane-mail-test' );
 				} else {
-					$next_check = wp_date( 'd/m/Y H:i', $last_ts + $interval );
+					$next_check = wp_date( 'Y/m/d H:i', $last_ts + $interval );
 				}
 			?>
 				<tr>
