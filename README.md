@@ -69,7 +69,7 @@ Go to **Mail Monitor → Monitored Sites** and fill in the **Add site** form for
 3. The child plugin runs `wp_mail()` and returns `true` or `false`
 4. If the result is KO **and the previous check was OK** (state change only), an alert email is sent to the configured recipients
 
-Authentication uses the secret key stored in `wp-config.php` on the client site. Keys are never stored in the database on the client side.
+Authentication uses a secret key configured on each client site. By default the key is generated automatically and stored encrypted (AES-256-CBC) in the site's `wp_options` table. On existing installations that have a `PP_MAIL_TEST_SECRET` constant in `wp-config.php`, that constant takes priority and continues to work without changes.
 
 ---
 
