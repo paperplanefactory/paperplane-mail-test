@@ -98,6 +98,14 @@ Transfer the list of monitored sites between installations:
 
 ---
 
+## Multisite
+
+The **PaperPlane Mail Test Child** plugin (installed on client sites) is fully compatible with WordPress Multisite. Each subsite in a network gets its own secret key and can be monitored independently — add each subsite as a separate entry in the monitor, using its own URL and key.
+
+This plugin (installed on the central assistance site) does not need to run on a multisite — a single-site installation is sufficient.
+
+---
+
 ## Updates
 
 The plugin updates automatically from the WordPress dashboard via releases published on this repository.
