@@ -2,7 +2,7 @@
 /**
  * Plugin Name: PaperPlane Mail Test
  * Description: Monitors mail function on client sites. Requires PaperPlane Mail Test Child installed on each site.
- * Version: 1.1.4
+ * Version: 1.1.5
  * Author: Paper Plane Factory
  * Text Domain: paperplane-mail-test
  * Domain Path: /languages
@@ -126,6 +126,11 @@ function pp_mm_is_url_allowed( string $url ): bool {
 	if ( filter_var( $ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE ) === false ) {
 		return false;
 	}
+	// 100.64.0.0/10 (CGNAT, RFC 6598) non è coperto dai flag di filter_var() ma è una rete interna (es. Tailscale).
+	$long = ip2long( $ip );
+	if ( $long !== false && ( $long & 0xFFC00000 ) === 0x64400000 ) {
+		return false;
+	}
 	return true;
 }
 
@@ -215,9 +220,11 @@ function pp_mm_check_site( array $site, string $test_email = '' ): array {
 	if ( $test_email ) {
 		$body['test_email'] = $test_email;
 	}
+	// Nessun redirect: un 3xx porterebbe la richiesta verso URL non validati da pp_mm_is_url_allowed() (SSRF).
 	$response = wp_remote_post( $url, array(
-		'timeout' => 15,
-		'body'    => $body,
+		'timeout'     => 15,
+		'redirection' => 0,
+		'body'        => $body,
 	) );
 
 	if ( is_wp_error( $response ) ) {
@@ -866,7 +873,7 @@ function pp_mm_render_settings_page() {
 							value="<?php echo esc_attr( $silent_test ); ?>"
 							class="regular-text"
 							placeholder="paperplane-mail-test@example.com">
-						<p class="description"><?php esc_html_e( 'Address that receives automatic cron test emails. Use a dedicated mailbox with a delete-all rule — this prevents inbox noise while keeping wp_mail() fully tested on each site.', 'paperplane-mail-test' ); ?></p>
+						<p class="description"><?php esc_html_e( 'Optional. Address that receives automatic cron test emails. If empty, each monitored site sends the test to its own admin email (Settings → General). A dedicated mailbox with a delete-all rule is recommended to avoid inbox noise.', 'paperplane-mail-test' ); ?></p>
 					</td>
 				</tr>
 			</table>

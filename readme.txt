@@ -2,7 +2,7 @@
 Contributors: paperplanefactory
 Requires at least: 5.9
 Tested up to: 6.7
-Stable tag: 1.1.4
+Stable tag: 1.1.5
 License: GPLv2 or later
 
 Monitors the mail function on client sites from a central installation. Install on the assistance site.
@@ -14,6 +14,11 @@ PaperPlane Mail Test monitors the mail function on your client sites from a cent
 Each client site must have the PaperPlane Mail Test Child plugin installed and configured.
 
 == Changelog ==
+
+= 1.1.5 =
+* Security: `pp_mm_is_url_allowed()` blocca anche la rete CGNAT 100.64.0.0/10 (non coperta dai flag di `filter_var()`)
+* Impostazioni: chiarito che l'indirizzo di test silenzioso è opzionale e che, se vuoto, il test viene inviato all'email di amministrazione del sito monitorato
+* Security: `pp_mm_check_site()` non segue più i redirect HTTP (un 3xx dal sito monitorato poteva aggirare `pp_mm_is_url_allowed()` e indirizzare la richiesta verso IP privati/interni)
 
 = 1.1.4 =
 * Security: `pp_mm_is_url_allowed()` applicato anche durante l'import (il bypass SSRF via JSON era possibile)

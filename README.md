@@ -12,6 +12,20 @@ Plugins like WP Mail SMTP can signal a delivery problem on the dashboard, but th
 
 PaperPlane Mail Test monitors the mail function on your client sites from a central installation. It periodically sends a test email through each site and checks whether `wp_mail()` succeeds. If it fails, you receive an alert immediately — before your client even notices.
 
+## What it does not check
+
+PaperPlane Mail Test verifies only that `wp_mail()` on the client site returns `true` — that is, WordPress and its mailer (SMTP plugin or PHP `mail()`) accepted the message and handed it to the sending server. An OK result does **not** mean the email reached the recipient's inbox.
+
+The plugin does **not** check email deliverability, including:
+
+- **Actual delivery** — whether the message reached the inbox, bounced, or landed in spam
+- **Domain authentication** — SPF, DKIM and DMARC records of the sender domain
+- **DNS configuration** — MX records, PTR / reverse DNS of the sending server
+- **Reputation** — IP or domain blacklists, sender reputation
+- **Message content** — headers, encoding, spam score
+
+These checks are not part of the plugin. Use dedicated tools such as [mail-tester.com](https://www.mail-tester.com), [MXToolbox](https://mxtoolbox.com), [Google Postmaster Tools](https://postmaster.google.com) or DMARC aggregate reports.
+
 ---
 
 WordPress plugin that periodically checks whether the mail function works on each monitored client site. Part of the PaperPlane mail monitoring system — install this on the central assistance site.
@@ -49,7 +63,7 @@ Then activate the plugin from the WordPress dashboard.
 Go to **Mail Monitor → Settings** and configure:
 
 - **Alert recipient** — one or more addresses (comma-separated) that receive KO alerts, the weekly report, and manual test results
-- **Silent test address** — a single address used for automatic cron test emails; use a dedicated mailbox with a delete-all rule to avoid inbox noise
+- **Silent test address** *(optional)* — a single address used for automatic cron test emails. If left empty, each monitored site sends the test to its own admin email (**Settings → General** on the client site). A dedicated mailbox with a delete-all rule is recommended to avoid inbox noise
 
 ### 3. Add monitored sites
 
@@ -81,9 +95,11 @@ Sent immediately when a site's mail function fails after a previously successful
 
 ### Silent test address
 
-Automatic cron checks send the `wp_mail()` test to a dedicated address that silently discards incoming mail. This keeps `wp_mail()` fully exercised on every monitored site without generating inbox noise. Only KO alerts are forwarded to the alert recipient.
+Optional, at the discretion of whoever runs the monitor. When set, automatic cron checks send the `wp_mail()` test to this address — for example a dedicated mailbox that silently discards incoming mail. This keeps `wp_mail()` fully exercised on every monitored site without generating inbox noise. Only KO alerts are sent to the alert recipient.
 
-Manual checks triggered via "Check now" send the test to the alert recipient instead, so you can verify delivery end-to-end.
+When left empty, each monitored site sends the cron test to its own admin email (**Settings → General** on the client site). With hourly checks this means up to 24 test emails a day to that address, so consider who reads it.
+
+Manual checks triggered via "Check now" send the test to the alert recipient instead, so you can check that the message arrives. If no alert recipient is configured, the test goes to the monitored site's admin email.
 
 ### Weekly summary report
 

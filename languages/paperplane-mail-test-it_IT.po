@@ -275,8 +275,8 @@ msgstr "Nessun sito valido trovato nel file."
 msgid "Silent test address"
 msgstr "Indirizzo test silenzioso"
 
-msgid "Address that receives automatic cron test emails. Use a dedicated mailbox with a delete-all rule — this prevents inbox noise while keeping wp_mail() fully tested on each site."
-msgstr "Indirizzo che riceve le mail di test automatiche del cron. Usa una casella dedicata con una regola elimina-tutto — evita il rumore nella posta in arrivo mantenendo wp_mail() testato su ogni sito."
+msgid "Optional. Address that receives automatic cron test emails. If empty, each monitored site sends the test to its own admin email (Settings → General). A dedicated mailbox with a delete-all rule is recommended to avoid inbox noise."
+msgstr "Opzionale. Indirizzo che riceve le mail di test automatiche del cron. Se vuoto, ogni sito monitorato invia il test al proprio indirizzo email di amministrazione (Impostazioni → Generali). Si consiglia una casella dedicata con una regola elimina-tutto per evitare rumore nella posta in arrivo."
 
 msgid "Next check"
 msgstr "Prossimo check"
