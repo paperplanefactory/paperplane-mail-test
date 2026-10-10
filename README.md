@@ -47,27 +47,43 @@ Each client site must have the **PaperPlane Mail Test Child** plugin installed a
 
 ## Installation
 
-### 1. Download and upload the plugin
+### 1. Download the installable zip
 
-Download **`paperplane-mail-test.zip`** from the **Assets** of the [latest release](https://github.com/paperplanefactory/paperplane-mail-test/releases/latest).
+Use **`paperplane-mail-test.zip`** — never GitHub's "Source code" archives.
 
-> **Do not use "Source code (zip)".** GitHub's source archive contains a folder named after the version (e.g. `paperplane-mail-test-1.1.6`). Each installation would end up in a differently named folder, and tools like MainWP would list it as a separate plugin. `paperplane-mail-test.zip` always installs into `wp-content/plugins/paperplane-mail-test/`.
+**Direct download (always the latest version):**
+[paperplane-mail-test.zip](https://github.com/paperplanefactory/paperplane-mail-test/releases/latest/download/paperplane-mail-test.zip)
 
-You can install it in two ways:
+```
+https://github.com/paperplanefactory/paperplane-mail-test/releases/latest/download/paperplane-mail-test.zip
+```
 
-- **Via WordPress dashboard** — go to **Plugins → Add New → Upload Plugin**, select the zip file, and click Install Now.
-- **Via FTP** — extract the zip and upload the `paperplane-mail-test` folder to `/wp-content/plugins/`.
+**Or from the releases page:**
 
-Then activate the plugin from the WordPress dashboard.
+1. Open the [latest release](https://github.com/paperplanefactory/paperplane-mail-test/releases/latest)
+2. Scroll down and expand **Assets**
+3. Download **`paperplane-mail-test.zip`**
+4. Do **not** download "Source code (zip)" or "Source code (tar.gz)"
 
-### 2. Configure notification recipients
+**How to recognise the right file:** it is named exactly `paperplane-mail-test.zip` (no version number) and contains a single folder named `paperplane-mail-test/`.
+
+> **Why it matters.** The "Source code" archive contains a folder named after the version (e.g. `paperplane-mail-test-1.1.6`). WordPress identifies a plugin by its folder name, so each installation would end up in a differently named folder, and tools like MainWP would list it as a separate plugin. Updates keep the original folder name, so the problem never fixes itself.
+>
+> **Already installed from "Source code"?** Rename the folder via FTP to `paperplane-mail-test` (e.g. `paperplane-mail-test-1.1.6` → `paperplane-mail-test`), then reactivate the plugin from **Plugins**. Settings are stored in the database and are kept. Do not delete the old copy from the WordPress dashboard: deleting runs the uninstall routine, which removes the plugin's data.
+
+### 2. Install and activate
+
+- **Via WordPress dashboard** — go to **Plugins → Add New → Upload Plugin**, select `paperplane-mail-test.zip`, click **Install Now**, then **Activate**.
+- **Via FTP** — extract the zip and upload the `paperplane-mail-test` folder to `/wp-content/plugins/`, then activate the plugin from **Plugins**.
+
+### 3. Configure notification recipients
 
 Go to **Mail Monitor → Settings** and configure:
 
 - **Alert recipient** — one or more addresses (comma-separated) that receive KO alerts, the weekly report, and manual test results
 - **Silent test address** *(optional)* — a single address used for automatic cron test emails. If left empty, each monitored site sends the test to its own admin email (**Settings → General** on the client site). A dedicated mailbox with a delete-all rule is recommended to avoid inbox noise
 
-### 3. Add monitored sites
+### 4. Add monitored sites
 
 Go to **Mail Monitor → Monitored Sites** and fill in the **Add site** form for each client site:
 
@@ -78,7 +94,7 @@ Go to **Mail Monitor → Monitored Sites** and fill in the **Add site** form for
 
 Click **Add site** to save it: the first automatic check runs at the next hourly cron run. Click **Add and verify** to save it and run a check immediately — the test email goes to the alert recipient, so you can confirm that URL and key are correct right away.
 
-### 4. Edit a monitored site
+### 5. Edit a monitored site
 
 Click **Edit** on a site to change its name, URL, frequency or secret key. The current secret key is never shown: leave **New secret key** empty to keep it, or paste a new one (for example after regenerating it on the client site). A new URL goes through the same validation used when adding a site.
 
