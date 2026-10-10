@@ -2,7 +2,7 @@
 /**
  * Plugin Name: PaperPlane Mail Test
  * Description: Monitors mail function on client sites. Requires PaperPlane Mail Test Child installed on each site.
- * Version: 1.1.5
+ * Version: 1.1.6
  * Author: Paper Plane Factory
  * Text Domain: paperplane-mail-test
  * Domain Path: /languages
@@ -22,6 +22,8 @@ add_action( 'init', function () {
 		'paperplane-mail-test'
 	);
 	$checker->setBranch( 'main' );
+	// Usa lo zip allegato alla release (cartella paperplane-mail-test/); se manca, ripiega sullo zip sorgente.
+	$checker->getVcsApi()->enableReleaseAssets( '/^paperplane-mail-test\.zip$/' );
 } );
 
 define( 'PP_MM_OPTION_SITES',          'pp_mm_sites' );

@@ -2,7 +2,7 @@
 Contributors: paperplanefactory
 Requires at least: 5.9
 Tested up to: 6.7
-Stable tag: 1.1.5
+Stable tag: 1.1.6
 License: GPLv2 or later
 
 Monitors the mail function on client sites from a central installation. Install on the assistance site.
@@ -14,6 +14,11 @@ PaperPlane Mail Test monitors the mail function on your client sites from a cent
 Each client site must have the PaperPlane Mail Test Child plugin installed and configured.
 
 == Changelog ==
+
+= 1.1.6 =
+* Release: ogni release include `paperplane-mail-test.zip` (cartella a nome fisso `paperplane-mail-test/`), generato automaticamente da una GitHub Action
+* Aggiornamenti: Plugin Update Checker usa lo zip allegato alla release invece dello zip sorgente di GitHub
+* README: installare da `paperplane-mail-test.zip`, non da "Source code (zip)"
 
 = 1.1.5 =
 * Modifica sito: ora è possibile cambiare anche URL (con validazione SSRF) e chiave segreta (campo vuoto = chiave invariata, mai mostrata)

@@ -1,0 +1,40 @@
+# Allega alla release uno zip installabile con cartella a nome fisso (paperplane-mail-test/).
+# Lo zip "Source code" generato da GitHub usa una cartella con la versione nel nome
+# (es. paperplane-mail-test-1.4.7): ogni installazione finirebbe in una cartella diversa e
+# MainWP / WordPress la vedrebbero come un plugin diverso.
+name: Release zip
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag della release esistente a cui allegare lo zip (es. 1.4.7)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  zip:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      # git archive rispetta gli export-ignore di .gitattributes; vendor/ è versionato.
+      - name: Build zip
+        run: git archive --format=zip --prefix=paperplane-mail-test/ -o paperplane-mail-test.zip HEAD
+
+      - name: Check zip structure
+        run: |
+          unzip -l paperplane-mail-test.zip | grep -q " paperplane-mail-test/paperplane-mail-test.php$"
+          unzip -l paperplane-mail-test.zip | grep -q " paperplane-mail-test/vendor/autoload.php$"
+
+      - name: Upload to release
+        run: gh release upload "$TAG" paperplane-mail-test.zip --clobber --repo "$GITHUB_REPOSITORY"

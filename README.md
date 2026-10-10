@@ -49,7 +49,9 @@ Each client site must have the **PaperPlane Mail Test Child** plugin installed a
 
 ### 1. Download and upload the plugin
 
-Download the latest release zip from the [GitHub Releases page](https://github.com/paperplanefactory/paperplane-mail-test/releases).
+Download **`paperplane-mail-test.zip`** from the **Assets** of the [latest release](https://github.com/paperplanefactory/paperplane-mail-test/releases/latest).
+
+> **Do not use "Source code (zip)".** GitHub's source archive contains a folder named after the version (e.g. `paperplane-mail-test-1.1.6`). Each installation would end up in a differently named folder, and tools like MainWP would list it as a separate plugin. `paperplane-mail-test.zip` always installs into `wp-content/plugins/paperplane-mail-test/`.
 
 You can install it in two ways:
 
