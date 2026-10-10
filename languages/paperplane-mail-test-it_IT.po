@@ -281,6 +281,18 @@ msgstr "Indirizzo che riceve le mail di test automatiche del cron. Usa una casel
 msgid "Next check"
 msgstr "Prossimo check"
 
+msgid "Site updated."
+msgstr "Sito aggiornato."
+
+msgid "Edit"
+msgstr "Modifica"
+
+msgid "Save changes"
+msgstr "Salva modifiche"
+
+msgid "Cancel"
+msgstr "Annulla"
+
 msgid "Pending"
 msgstr "In attesa"
 

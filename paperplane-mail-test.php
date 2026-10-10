@@ -2,7 +2,7 @@
 /**
  * Plugin Name: PaperPlane Mail Test
  * Description: Monitors mail function on client sites. Requires PaperPlane Mail Test Child installed on each site.
- * Version: 1.1.1
+ * Version: 1.1.2
  * Author: Paper Plane Factory
  * Text Domain: paperplane-mail-test
  * Domain Path: /languages
@@ -479,6 +479,21 @@ function pp_mm_handle_actions() {
 		exit;
 	}
 
+	// ── Modifica sito ─────────────────────────────────────────────────────────
+	if ( $action === 'edit_site' && check_admin_referer( 'pp_mm_edit' ) ) {
+		$idx   = (int) ( $_POST['pp_mm_idx'] ?? -1 );
+		$sites = get_option( PP_MM_OPTION_SITES, array() );
+		if ( isset( $sites[ $idx ] ) ) {
+			$sites[ $idx ]['label']     = sanitize_text_field( $_POST['pp_mm_label'] ?? '' );
+			$sites[ $idx ]['frequency'] = in_array( $_POST['pp_mm_frequency'] ?? '', array( 'hourly', 'daily' ), true )
+				? $_POST['pp_mm_frequency']
+				: $sites[ $idx ]['frequency'];
+			update_option( PP_MM_OPTION_SITES, $sites );
+		}
+		wp_safe_redirect( add_query_arg( 'pp_mm_updated', '1', admin_url( 'admin.php?page=pp-mail-monitor' ) ) );
+		exit;
+	}
+
 	// ── Export siti ────────────────────────────────────────────────────────────
 	if ( $action === 'export_sites' && check_admin_referer( 'pp_mm_export' ) ) {
 		$sites        = get_option( PP_MM_OPTION_SITES, array() );
@@ -607,6 +622,9 @@ function pp_mm_render_sites_page() {
 		<?php if ( isset( $_GET['pp_mm_saved'] ) ) : ?>
 			<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Site added.', 'paperplane-mail-test' ); ?></p></div>
 		<?php endif; ?>
+		<?php if ( isset( $_GET['pp_mm_updated'] ) ) : ?>
+			<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Site updated.', 'paperplane-mail-test' ); ?></p></div>
+		<?php endif; ?>
 		<?php if ( isset( $_GET['pp_mm_url_error'] ) ) : ?>
 			<div class="notice notice-error is-dismissible"><p><?php esc_html_e( 'Invalid URL. Only https:// addresses pointing to public sites are accepted.', 'paperplane-mail-test' ); ?></p></div>
 		<?php endif; ?>
@@ -695,6 +713,8 @@ function pp_mm_render_sites_page() {
 							<button type="submit" class="button button-secondary"><?php esc_html_e( 'Check now', 'paperplane-mail-test' ); ?></button>
 						</form>
 						&nbsp;
+						<button type="button" class="button button-secondary pp-mm-edit-btn" data-row="pp-mm-edit-<?php echo (int) $site['_orig_idx']; ?>"><?php esc_html_e( 'Edit', 'paperplane-mail-test' ); ?></button>
+						&nbsp;
 						<form method="post" style="display:inline" onsubmit="return confirm('<?php echo esc_js( __( 'Remove this site?', 'paperplane-mail-test' ) ); ?>')">
 							<?php wp_nonce_field( 'pp_mm_delete' ); ?>
 							<input type="hidden" name="pp_mm_action" value="delete_site">
@@ -703,9 +723,43 @@ function pp_mm_render_sites_page() {
 						</form>
 					</td>
 				</tr>
+				<tr id="pp-mm-edit-<?php echo (int) $site['_orig_idx']; ?>" style="display:none;background:#f6f7f7">
+					<td colspan="6" style="padding:12px 16px">
+						<form method="post" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+							<?php wp_nonce_field( 'pp_mm_edit' ); ?>
+							<input type="hidden" name="pp_mm_action" value="edit_site">
+							<input type="hidden" name="pp_mm_idx" value="<?php echo (int) $site['_orig_idx']; ?>">
+							<label style="display:flex;align-items:center;gap:6px">
+								<strong><?php esc_html_e( 'Name / label', 'paperplane-mail-test' ); ?></strong>
+								<input type="text" name="pp_mm_label" class="regular-text" value="<?php echo esc_attr( $site['label'] ); ?>">
+							</label>
+							<label style="display:flex;align-items:center;gap:6px">
+								<strong><?php esc_html_e( 'Frequency', 'paperplane-mail-test' ); ?></strong>
+								<select name="pp_mm_frequency">
+									<option value="daily" <?php selected( $site['frequency'], 'daily' ); ?>><?php esc_html_e( 'Every day', 'paperplane-mail-test' ); ?></option>
+									<option value="hourly" <?php selected( $site['frequency'], 'hourly' ); ?>><?php esc_html_e( 'Every hour', 'paperplane-mail-test' ); ?></option>
+								</select>
+							</label>
+							<button type="submit" class="button button-primary"><?php esc_html_e( 'Save changes', 'paperplane-mail-test' ); ?></button>
+							<button type="button" class="button button-secondary pp-mm-cancel-btn" data-row="pp-mm-edit-<?php echo (int) $site['_orig_idx']; ?>"><?php esc_html_e( 'Cancel', 'paperplane-mail-test' ); ?></button>
+						</form>
+					</td>
+				</tr>
 			<?php endforeach; ?>
 			</tbody>
 		</table>
+		<script>
+		document.querySelectorAll('.pp-mm-edit-btn').forEach(function(btn) {
+			btn.addEventListener('click', function() {
+				document.getElementById(btn.dataset.row).style.display = '';
+			});
+		});
+		document.querySelectorAll('.pp-mm-cancel-btn').forEach(function(btn) {
+			btn.addEventListener('click', function() {
+				document.getElementById(btn.dataset.row).style.display = 'none';
+			});
+		});
+		</script>
 		<?php else : ?>
 			<p><?php esc_html_e( 'No sites configured.', 'paperplane-mail-test' ); ?></p>
 		<?php endif; ?>
