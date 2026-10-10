@@ -2,7 +2,7 @@
 /**
  * Plugin Name: PaperPlane Mail Test
  * Description: Monitors mail function on client sites. Requires PaperPlane Mail Test Child installed on each site.
- * Version: 1.1.3
+ * Version: 1.1.4
  * Author: Paper Plane Factory
  * Text Domain: paperplane-mail-test
  * Domain Path: /languages
@@ -43,9 +43,8 @@ register_activation_hook( __FILE__, function () {
 
 function pp_mm_get_encryption_key(): string {
 	$salt = defined( 'AUTH_KEY' ) ? AUTH_KEY : ( defined( 'SECURE_AUTH_KEY' ) ? SECURE_AUTH_KEY : '' );
-	if ( ! $salt ) {
-		$salt = get_option( 'siteurl', 'pp_mm_fallback' );
-	}
+	// Non usare siteurl come fallback: è pubblicamente noto e renderebbe la cifratura indovinabile.
+	// Se AUTH_KEY non è definita WordPress stesso è rotto; il fallback a '' è coerente col child plugin.
 	return hash( 'sha256', $salt . 'pp_mm_v1', true ); // 32 bytes per AES-256
 }
 
@@ -199,9 +198,15 @@ function pp_mm_run_checks() {
  * Chiama l'endpoint del sito e restituisce array ['success', 'message', 'token'].
  */
 function pp_mm_check_site( array $site, string $test_email = '' ): array {
-	$url    = trailingslashit( $site['url'] ) . 'wp-json/pp-mail-test/v1/check';
+	$url   = trailingslashit( $site['url'] ) . 'wp-json/pp-mail-test/v1/check';
+	$token = wp_generate_password( 16, false );
+
+	// Ri-valida l'URL al momento della richiesta (SSRF TOCTOU: il DNS potrebbe essere cambiato dopo il salvataggio).
+	if ( ! pp_mm_is_url_allowed( $site['url'] ) ) {
+		return array( 'success' => false, 'message' => 'URL non consentito', 'token' => $token );
+	}
+
 	$secret = pp_mm_decrypt( $site['secret'] ?? '' );
-	$token  = wp_generate_password( 16, false );
 
 	$body = array(
 		'pp_secret'      => $secret,
@@ -428,7 +433,7 @@ function pp_mm_handle_actions() {
 		return;
 	}
 
-	$action = $_POST['pp_mm_action'] ?? $_GET['pp_mm_action'] ?? '';
+	$action = sanitize_key( $_POST['pp_mm_action'] ?? '' );
 
 	// ── Aggiungi sito ──────────────────────────────────────────────────────────
 	if ( $action === 'add_site' && check_admin_referer( 'pp_mm_add' ) ) {
@@ -570,8 +575,7 @@ function pp_mm_handle_actions() {
 				continue;
 			}
 			$url    = esc_url_raw( trim( $raw['url'] ?? '' ) );
-			$parsed = wp_parse_url( $url );
-			if ( ! $parsed || ( $parsed['scheme'] ?? '' ) !== 'https' || empty( $parsed['host'] ) ) {
+			if ( ! pp_mm_is_url_allowed( $url ) ) {
 				continue;
 			}
 			$freq = $raw['frequency'] ?? 'daily';

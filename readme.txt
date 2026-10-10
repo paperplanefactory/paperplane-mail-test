@@ -2,7 +2,7 @@
 Contributors: paperplanefactory
 Requires at least: 5.9
 Tested up to: 6.7
-Stable tag: 1.1.3
+Stable tag: 1.1.4
 License: GPLv2 or later
 
 Monitors the mail function on client sites from a central installation. Install on the assistance site.
@@ -14,6 +14,12 @@ PaperPlane Mail Test monitors the mail function on your client sites from a cent
 Each client site must have the PaperPlane Mail Test Child plugin installed and configured.
 
 == Changelog ==
+
+= 1.1.4 =
+* Security: `pp_mm_is_url_allowed()` applicato anche durante l'import (il bypass SSRF via JSON era possibile)
+* Security: ri-validazione URL al momento della richiesta HTTP in `pp_mm_check_site()` (SSRF TOCTOU / DNS rebinding)
+* Security: azioni POST non più leggibili da `$_GET`; aggiunto `sanitize_key()` su `$action`
+* Security: chiave di cifratura non usa più `siteurl` come fallback se `AUTH_KEY` è assente
 
 = 1.1.3 =
 * Aggiunto token univoco per ogni call: inviato all'endpoint child come pp_check_token, salvato in last_check_token per la futura verifica della consegna
