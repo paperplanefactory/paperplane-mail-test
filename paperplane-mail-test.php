@@ -2,7 +2,7 @@
 /**
  * Plugin Name: PaperPlane Mail Test
  * Description: Monitors mail function on client sites. Requires PaperPlane Mail Test Child installed on each site.
- * Version: 1.1.0
+ * Version: 1.1.1
  * Author: Paper Plane Factory
  * Text Domain: paperplane-mail-test
  * Domain Path: /languages
@@ -240,7 +240,7 @@ function pp_mm_send_alert( array $site, string $message ) {
 		return;
 	}
 	$label   = $site['label'] ?: $site['url'];
-	$subject = sprintf( __( '[Assistance] Mail KO: %s', 'paperplane-mail-test' ), $label );
+	$subject = sprintf( __( '[PaperPlane Mail Test issue] Mail KO: %s', 'paperplane-mail-test' ), $label );
 	$body    = '<p>' . sprintf( __( 'The mail function test on %s failed.', 'paperplane-mail-test' ), '<strong>' . esc_html( $label ) . '</strong>' ) . '</p>'
 		. '<p><strong>' . __( 'URL:', 'paperplane-mail-test' ) . '</strong> ' . esc_html( $site['url'] ) . '</p>'
 		. '<p><strong>' . __( 'Error:', 'paperplane-mail-test' ) . '</strong> ' . esc_html( $message ) . '</p>'
@@ -333,7 +333,7 @@ function pp_mm_send_weekly_report() {
 	);
 
 	$subject = sprintf(
-		__( '[Weekly Report] PaperPlane Mail Monitor — %s', 'paperplane-mail-test' ),
+		__( '[PaperPlane Mail Test Weekly Report] PaperPlane Mail Monitor — %s', 'paperplane-mail-test' ),
 		wp_date( 'Y/m/d' )
 	);
 

@@ -18,8 +18,8 @@ msgid "Invalid response"
 msgstr "Risposta non valida"
 
 #: paperplane-mail-test.php:120
-msgid "[Assistance] Mail KO: %s"
-msgstr "[Assistenza] Mail KO: %s"
+msgid "[PaperPlane Mail Test issue] Mail KO: %s"
+msgstr "[PaperPlane Mail Test issue] Mail KO: %s"
 
 #: paperplane-mail-test.php:121
 msgid "The mail function test on %s failed."
@@ -161,8 +161,8 @@ msgstr "Frequenza controllo"
 msgid "%1$d sites monitored — %2$d OK, %3$d KO"
 msgstr "%1$d siti monitorati — %2$d OK, %3$d KO"
 
-msgid "[Weekly Report] PaperPlane Mail Monitor — %s"
-msgstr "[Weekly Report] PaperPlane Mail Monitor — %s"
+msgid "[PaperPlane Mail Test Weekly Report] PaperPlane Mail Monitor — %s"
+msgstr "[PaperPlane Mail Test Weekly Report] PaperPlane Mail Monitor — %s"
 
 msgid "Weekly Mail Monitor Report"
 msgstr "Report settimanale Mail Monitor"
