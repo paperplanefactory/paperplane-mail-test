@@ -174,11 +174,12 @@ function pp_mm_run_checks() {
 		$silent_test = get_option( PP_MM_OPTION_SILENT_TEST, '' );
 		$result      = pp_mm_check_site( $site, $silent_test );
 
-		$prev_status          = $site['last_status'] ?? '';
-		$site['last_check']   = $now;
-		$site['last_status']  = $result['success'] ? 'ok' : 'error';
-		$site['last_message'] = $result['message'] ?? '';
-		$updated              = true;
+		$prev_status               = $site['last_status'] ?? '';
+		$site['last_check']        = $now;
+		$site['last_status']       = $result['success'] ? 'ok' : 'error';
+		$site['last_message']      = $result['message'] ?? '';
+		$site['last_check_token']  = $result['token'] ?? '';
+		$updated                   = true;
 
 		// Notifica solo al passaggio da OK a KO (o primo KO)
 		if ( ! $result['success'] && $prev_status !== 'error' ) {
@@ -195,13 +196,17 @@ function pp_mm_run_checks() {
 }
 
 /**
- * Chiama l'endpoint del sito e restituisce array ['success', 'message'].
+ * Chiama l'endpoint del sito e restituisce array ['success', 'message', 'token'].
  */
-function pp_mm_check_site( array $site, string $test_email = '' ) {
+function pp_mm_check_site( array $site, string $test_email = '' ): array {
 	$url    = trailingslashit( $site['url'] ) . 'wp-json/pp-mail-test/v1/check';
 	$secret = pp_mm_decrypt( $site['secret'] ?? '' );
+	$token  = wp_generate_password( 16, false );
 
-	$body = array( 'pp_secret' => $secret );
+	$body = array(
+		'pp_secret'      => $secret,
+		'pp_check_token' => $token,
+	);
 	if ( $test_email ) {
 		$body['test_email'] = $test_email;
 	}
@@ -211,22 +216,23 @@ function pp_mm_check_site( array $site, string $test_email = '' ) {
 	) );
 
 	if ( is_wp_error( $response ) ) {
-		return array( 'success' => false, 'message' => $response->get_error_message() );
+		return array( 'success' => false, 'message' => $response->get_error_message(), 'token' => $token );
 	}
 
 	$code = wp_remote_retrieve_response_code( $response );
 	if ( $code !== 200 ) {
-		return array( 'success' => false, 'message' => 'HTTP ' . $code );
+		return array( 'success' => false, 'message' => 'HTTP ' . $code, 'token' => $token );
 	}
 
 	$body = json_decode( wp_remote_retrieve_body( $response ), true );
 	if ( ! is_array( $body ) ) {
-		return array( 'success' => false, 'message' => __( 'Invalid response', 'paperplane-mail-test' ) );
+		return array( 'success' => false, 'message' => __( 'Invalid response', 'paperplane-mail-test' ), 'token' => $token );
 	}
 
 	return array(
 		'success' => ! empty( $body['success'] ),
 		'message' => $body['message'] ?? '',
+		'token'   => $token,
 	);
 }
 
@@ -465,11 +471,12 @@ function pp_mm_handle_actions() {
 		$idx   = (int) ( $_POST['pp_mm_idx'] ?? -1 );
 		$sites = get_option( PP_MM_OPTION_SITES, array() );
 		if ( isset( $sites[ $idx ] ) ) {
-			$result                        = pp_mm_check_site( $sites[ $idx ], get_option( PP_MM_OPTION_NOTIFY, '' ) );
-			$prev_status                   = $sites[ $idx ]['last_status'] ?? '';
-			$sites[ $idx ]['last_check']   = time();
-			$sites[ $idx ]['last_status']  = $result['success'] ? 'ok' : 'error';
-			$sites[ $idx ]['last_message'] = $result['message'] ?? '';
+			$result                             = pp_mm_check_site( $sites[ $idx ], get_option( PP_MM_OPTION_NOTIFY, '' ) );
+			$prev_status                        = $sites[ $idx ]['last_status'] ?? '';
+			$sites[ $idx ]['last_check']        = time();
+			$sites[ $idx ]['last_status']       = $result['success'] ? 'ok' : 'error';
+			$sites[ $idx ]['last_message']      = $result['message'] ?? '';
+			$sites[ $idx ]['last_check_token']  = $result['token'] ?? '';
 			if ( ! $result['success'] && $prev_status !== 'error' ) {
 				pp_mm_send_alert( $sites[ $idx ], $result['message'] );
 			}
