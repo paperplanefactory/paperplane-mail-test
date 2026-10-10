@@ -2,7 +2,7 @@
 Contributors: paperplanefactory
 Requires at least: 5.9
 Tested up to: 6.7
-Stable tag: 1.1.2
+Stable tag: 1.1.3
 License: GPLv2 or later
 
 Monitors the mail function on client sites from a central installation. Install on the assistance site.
@@ -14,6 +14,9 @@ PaperPlane Mail Test monitors the mail function on your client sites from a cent
 Each client site must have the PaperPlane Mail Test Child plugin installed and configured.
 
 == Changelog ==
+
+= 1.1.3 =
+* Aggiunto token univoco per ogni call: inviato all'endpoint child come pp_check_token, salvato in last_check_token per la futura verifica della consegna
 
 = 1.1.2 =
 * Aggiunta modifica inline di nome sito e frequenza direttamente dalla lista siti
