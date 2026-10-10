@@ -16,6 +16,9 @@ Each client site must have the PaperPlane Mail Test Child plugin installed and c
 == Changelog ==
 
 = 1.1.5 =
+* Modifica sito: ora è possibile cambiare anche URL (con validazione SSRF) e chiave segreta (campo vuoto = chiave invariata, mai mostrata)
+* Aggiungi sito: nuovo pulsante "Aggiungi e verifica" che salva il sito ed esegue subito il primo check
+* Modifica sito: nuovo pulsante "Salva e verifica" che salva ed esegue subito un check; al cambio di URL o chiave lo stato del sito viene azzerato
 * Security: `pp_mm_is_url_allowed()` blocca anche la rete CGNAT 100.64.0.0/10 (non coperta dai flag di `filter_var()`)
 * Impostazioni: chiarito che l'indirizzo di test silenzioso è opzionale e che, se vuoto, il test viene inviato all'email di amministrazione del sito monitorato
 * Security: `pp_mm_check_site()` non segue più i redirect HTTP (un 3xx dal sito monitorato poteva aggirare `pp_mm_is_url_allowed()` e indirizzare la richiesta verso IP privati/interni)

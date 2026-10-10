@@ -74,6 +74,14 @@ Go to **Mail Monitor → Monitored Sites** and fill in the **Add site** form for
 - **Secret key** — copy it from **Tools → PaperPlane Mail Test** on the client site
 - **Check frequency** — hourly or daily
 
+Click **Add site** to save it: the first automatic check runs at the next hourly cron run. Click **Add and verify** to save it and run a check immediately — the test email goes to the alert recipient, so you can confirm that URL and key are correct right away.
+
+### 4. Edit a monitored site
+
+Click **Edit** on a site to change its name, URL, frequency or secret key. The current secret key is never shown: leave **New secret key** empty to keep it, or paste a new one (for example after regenerating it on the client site). A new URL goes through the same validation used when adding a site.
+
+When the URL or the key changes, the site's status is reset. **Save and verify** saves the changes and runs a check immediately, so you can confirm the new configuration works.
+
 ---
 
 ## How it works

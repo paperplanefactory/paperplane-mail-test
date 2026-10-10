@@ -301,3 +301,15 @@ msgstr "Imminente"
 
 msgid "PaperPlane Mail Test requires the PHP OpenSSL extension. Please enable it on your server and try again."
 msgstr "PaperPlane Mail Test richiede l'estensione PHP OpenSSL. Abilitala sul server e riprova."
+
+msgid "New secret key"
+msgstr "Nuova chiave segreta"
+
+msgid "Leave empty to keep the current key"
+msgstr "Lascia vuoto per mantenere la chiave attuale"
+
+msgid "Save and verify"
+msgstr "Salva e verifica"
+
+msgid "Add and verify"
+msgstr "Aggiungi e verifica"

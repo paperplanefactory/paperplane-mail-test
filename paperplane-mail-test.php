@@ -433,6 +433,23 @@ function pp_mm_register_settings() {
 
 // ─── Gestione azioni POST ─────────────────────────────────────────────────────
 
+/**
+ * Check manuale ("Controlla ora", "Salva e verifica"): il test va al destinatario degli alert.
+ * Aggiorna lo stato del sito, invia l'alert al passaggio a KO e salva la lista.
+ */
+function pp_mm_manual_check( array &$sites, int $idx ): void {
+	$result                            = pp_mm_check_site( $sites[ $idx ], get_option( PP_MM_OPTION_NOTIFY, '' ) );
+	$prev_status                       = $sites[ $idx ]['last_status'] ?? '';
+	$sites[ $idx ]['last_check']       = time();
+	$sites[ $idx ]['last_status']      = $result['success'] ? 'ok' : 'error';
+	$sites[ $idx ]['last_message']     = $result['message'] ?? '';
+	$sites[ $idx ]['last_check_token'] = $result['token'] ?? '';
+	if ( ! $result['success'] && $prev_status !== 'error' ) {
+		pp_mm_send_alert( $sites[ $idx ], $result['message'] );
+	}
+	update_option( PP_MM_OPTION_SITES, $sites );
+}
+
 add_action( 'admin_init', 'pp_mm_handle_actions' );
 
 function pp_mm_handle_actions() {
@@ -461,6 +478,12 @@ function pp_mm_handle_actions() {
 			'last_status'  => '',
 			'last_message' => '',
 		);
+		if ( ! empty( $_POST['pp_mm_verify'] ) ) {
+			$idx = array_key_last( $sites );
+			pp_mm_manual_check( $sites, $idx );
+			wp_safe_redirect( add_query_arg( array( 'pp_mm_saved' => '1', 'pp_mm_checked' => $idx ), admin_url( 'admin.php?page=pp-mail-monitor' ) ) );
+			exit;
+		}
 		update_option( PP_MM_OPTION_SITES, $sites );
 		wp_safe_redirect( add_query_arg( 'pp_mm_saved', '1', admin_url( 'admin.php?page=pp-mail-monitor' ) ) );
 		exit;
@@ -483,16 +506,7 @@ function pp_mm_handle_actions() {
 		$idx   = (int) ( $_POST['pp_mm_idx'] ?? -1 );
 		$sites = get_option( PP_MM_OPTION_SITES, array() );
 		if ( isset( $sites[ $idx ] ) ) {
-			$result                             = pp_mm_check_site( $sites[ $idx ], get_option( PP_MM_OPTION_NOTIFY, '' ) );
-			$prev_status                        = $sites[ $idx ]['last_status'] ?? '';
-			$sites[ $idx ]['last_check']        = time();
-			$sites[ $idx ]['last_status']       = $result['success'] ? 'ok' : 'error';
-			$sites[ $idx ]['last_message']      = $result['message'] ?? '';
-			$sites[ $idx ]['last_check_token']  = $result['token'] ?? '';
-			if ( ! $result['success'] && $prev_status !== 'error' ) {
-				pp_mm_send_alert( $sites[ $idx ], $result['message'] );
-			}
-			update_option( PP_MM_OPTION_SITES, $sites );
+			pp_mm_manual_check( $sites, $idx );
 		}
 		wp_safe_redirect( add_query_arg( 'pp_mm_checked', $idx, admin_url( 'admin.php?page=pp-mail-monitor' ) ) );
 		exit;
@@ -500,16 +514,50 @@ function pp_mm_handle_actions() {
 
 	// ── Modifica sito ─────────────────────────────────────────────────────────
 	if ( $action === 'edit_site' && check_admin_referer( 'pp_mm_edit' ) ) {
-		$idx   = (int) ( $_POST['pp_mm_idx'] ?? -1 );
-		$sites = get_option( PP_MM_OPTION_SITES, array() );
-		if ( isset( $sites[ $idx ] ) ) {
-			$sites[ $idx ]['label']     = sanitize_text_field( $_POST['pp_mm_label'] ?? '' );
-			$sites[ $idx ]['frequency'] = in_array( $_POST['pp_mm_frequency'] ?? '', array( 'hourly', 'daily' ), true )
-				? $_POST['pp_mm_frequency']
-				: $sites[ $idx ]['frequency'];
-			update_option( PP_MM_OPTION_SITES, $sites );
+		$idx      = (int) ( $_POST['pp_mm_idx'] ?? -1 );
+		$sites    = get_option( PP_MM_OPTION_SITES, array() );
+		$page_url = admin_url( 'admin.php?page=pp-mail-monitor' );
+		if ( ! isset( $sites[ $idx ] ) ) {
+			wp_safe_redirect( $page_url );
+			exit;
 		}
-		wp_safe_redirect( add_query_arg( 'pp_mm_updated', '1', admin_url( 'admin.php?page=pp-mail-monitor' ) ) );
+
+		// URL: validato come in fase di inserimento (SSRF). Campo vuoto = URL invariato.
+		$raw_url = trim( wp_unslash( $_POST['pp_mm_url'] ?? '' ) );
+		$new_url = $raw_url !== '' ? esc_url_raw( $raw_url ) : $sites[ $idx ]['url'];
+		if ( $new_url !== $sites[ $idx ]['url'] && ! pp_mm_is_url_allowed( $new_url ) ) {
+			wp_safe_redirect( add_query_arg( 'pp_mm_url_error', '1', $page_url ) );
+			exit;
+		}
+
+		// Chiave: mai mostrata nel form. Campo vuoto = chiave invariata.
+		$new_secret = sanitize_text_field( wp_unslash( $_POST['pp_mm_new_secret'] ?? '' ) );
+
+		$sites[ $idx ]['label']     = sanitize_text_field( $_POST['pp_mm_label'] ?? '' );
+		$sites[ $idx ]['frequency'] = in_array( $_POST['pp_mm_frequency'] ?? '', array( 'hourly', 'daily' ), true )
+			? $_POST['pp_mm_frequency']
+			: $sites[ $idx ]['frequency'];
+
+		if ( $new_url !== $sites[ $idx ]['url'] || $new_secret !== '' ) {
+			$sites[ $idx ]['url'] = $new_url;
+			if ( $new_secret !== '' ) {
+				$sites[ $idx ]['secret'] = pp_mm_encrypt( $new_secret );
+			}
+			// Stato azzerato: un sito già in KO non rimanderebbe l'alert se la nuova configurazione fosse errata.
+			$sites[ $idx ]['last_check']       = 0;
+			$sites[ $idx ]['last_status']      = '';
+			$sites[ $idx ]['last_message']     = '';
+			$sites[ $idx ]['last_check_token'] = '';
+		}
+
+		if ( ! empty( $_POST['pp_mm_verify'] ) ) {
+			pp_mm_manual_check( $sites, $idx );
+			wp_safe_redirect( add_query_arg( array( 'pp_mm_updated' => '1', 'pp_mm_checked' => $idx ), $page_url ) );
+			exit;
+		}
+
+		update_option( PP_MM_OPTION_SITES, $sites );
+		wp_safe_redirect( add_query_arg( 'pp_mm_updated', '1', $page_url ) );
 		exit;
 	}
 
@@ -752,6 +800,14 @@ function pp_mm_render_sites_page() {
 								<input type="text" name="pp_mm_label" class="regular-text" value="<?php echo esc_attr( $site['label'] ); ?>">
 							</label>
 							<label style="display:flex;align-items:center;gap:6px">
+								<strong><?php esc_html_e( 'Site URL', 'paperplane-mail-test' ); ?></strong>
+								<input type="url" name="pp_mm_url" class="regular-text" value="<?php echo esc_attr( $site['url'] ); ?>" required>
+							</label>
+							<label style="display:flex;align-items:center;gap:6px">
+								<strong><?php esc_html_e( 'New secret key', 'paperplane-mail-test' ); ?></strong>
+								<input type="password" name="pp_mm_new_secret" class="regular-text" value="" autocomplete="new-password" placeholder="<?php echo esc_attr__( 'Leave empty to keep the current key', 'paperplane-mail-test' ); ?>">
+							</label>
+							<label style="display:flex;align-items:center;gap:6px">
 								<strong><?php esc_html_e( 'Frequency', 'paperplane-mail-test' ); ?></strong>
 								<select name="pp_mm_frequency">
 									<option value="daily" <?php selected( $site['frequency'], 'daily' ); ?>><?php esc_html_e( 'Every day', 'paperplane-mail-test' ); ?></option>
@@ -759,6 +815,7 @@ function pp_mm_render_sites_page() {
 								</select>
 							</label>
 							<button type="submit" class="button button-primary"><?php esc_html_e( 'Save changes', 'paperplane-mail-test' ); ?></button>
+							<button type="submit" name="pp_mm_verify" value="1" class="button button-secondary"><?php esc_html_e( 'Save and verify', 'paperplane-mail-test' ); ?></button>
 							<button type="button" class="button button-secondary pp-mm-cancel-btn" data-row="pp-mm-edit-<?php echo (int) $site['_orig_idx']; ?>"><?php esc_html_e( 'Cancel', 'paperplane-mail-test' ); ?></button>
 						</form>
 					</td>
@@ -815,7 +872,10 @@ function pp_mm_render_sites_page() {
 					</td>
 				</tr>
 			</table>
-			<?php submit_button( __( 'Add site', 'paperplane-mail-test' ) ); ?>
+			<p class="submit">
+				<button type="submit" class="button button-primary"><?php esc_html_e( 'Add site', 'paperplane-mail-test' ); ?></button>
+				<button type="submit" name="pp_mm_verify" value="1" class="button button-secondary"><?php esc_html_e( 'Add and verify', 'paperplane-mail-test' ); ?></button>
+			</p>
 		</form>
 	</div>
 	<?php
