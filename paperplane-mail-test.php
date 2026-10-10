@@ -629,7 +629,7 @@ function pp_mm_render_sites_page() {
 			</div>
 		<?php endif; ?>
 
-		<h2><?php esc_html_e( 'Sites', 'paperplane-mail-test' ); ?></h2>
+		<h2><?php esc_html_e( 'Sites', 'paperplane-mail-test' ); ?> <span style="font-weight:normal;color:#999">(<?php echo count( $sites ); ?>)</span></h2>
 
 		<?php
 		// Conserva l'indice originale prima di ordinare, così i form passano
