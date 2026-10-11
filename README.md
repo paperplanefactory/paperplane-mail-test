@@ -109,7 +109,7 @@ When the URL or the key changes, the site's status is reset. **Save and verify**
 3. The child plugin runs `wp_mail()` and returns `true` or `false`
 4. If the result is KO **and the previous check was OK** (state change only), an alert email is sent to the configured recipients
 
-Authentication uses a secret key configured on each client site. By default the key is generated automatically and stored encrypted (AES-256-CBC) in the site's `wp_options` table. On existing installations that have a `PP_MAIL_TEST_SECRET` constant in `wp-config.php`, that constant takes priority and continues to work without changes.
+Authentication uses a secret key configured on each client site. The key is generated automatically by the child plugin and stored encrypted (AES-256-CBC) in the site's `wp_options` table.
 
 ---
 

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: PaperPlane Mail Test
  * Description: Monitors mail function on client sites. Requires PaperPlane Mail Test Child installed on each site.
- * Version: 1.1.6
+ * Version: 1.1.7
  * Author: Paper Plane Factory
  * Text Domain: paperplane-mail-test
  * Domain Path: /languages
@@ -113,27 +113,61 @@ add_action( 'init', function () {
  * Protezione contro SSRF (Server-Side Request Forgery).
  */
 function pp_mm_is_url_allowed( string $url ): bool {
+	return pp_mm_resolve_allowed_ip( $url ) !== '';
+}
+
+/**
+ * Risolve l'host dell'URL e restituisce il primo IPv4 pubblico, o '' se l'URL non è consentito.
+ * L'IP restituito va usato per la connessione (pp_mm_remote_post_pinned()): una seconda
+ * risoluzione DNS potrebbe dare un altro indirizzo (DNS rebinding) o un IPv6 mai validato.
+ */
+function pp_mm_resolve_allowed_ip( string $url ): string {
 	$parsed = wp_parse_url( $url );
 	if ( ! $parsed || ( $parsed['scheme'] ?? '' ) !== 'https' ) {
-		return false;
+		return '';
+	}
+	// Credenziali nell'URL (https://user:pass@host): verrebbero salvate in chiaro e inviate al sito.
+	if ( isset( $parsed['user'] ) || isset( $parsed['pass'] ) ) {
+		return '';
 	}
 	$host = $parsed['host'] ?? '';
 	if ( ! $host ) {
-		return false;
+		return '';
 	}
 	if ( in_array( strtolower( $host ), array( 'localhost', '::1' ), true ) ) {
-		return false;
+		return '';
 	}
-	$ip = gethostbyname( $host );
-	if ( filter_var( $ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE ) === false ) {
-		return false;
+	// Solo IPv4: i siti IPv6-only non sono supportati (limitazione nota).
+	$ips = filter_var( $host, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 ) ? array( $host ) : gethostbynamel( $host );
+	foreach ( (array) $ips as $ip ) {
+		if ( filter_var( $ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE ) === false ) {
+			continue;
+		}
+		// 100.64.0.0/10 (CGNAT, RFC 6598) non è coperto dai flag di filter_var() ma è una rete interna (es. Tailscale).
+		if ( ( ip2long( $ip ) & 0xFFC00000 ) === 0x64400000 ) {
+			continue;
+		}
+		return $ip;
 	}
-	// 100.64.0.0/10 (CGNAT, RFC 6598) non è coperto dai flag di filter_var() ma è una rete interna (es. Tailscale).
-	$long = ip2long( $ip );
-	if ( $long !== false && ( $long & 0xFFC00000 ) === 0x64400000 ) {
-		return false;
-	}
-	return true;
+	return '';
+}
+
+/**
+ * wp_remote_post() con la connessione forzata sull'IP già validato (CURLOPT_RESOLVE).
+ * Hostname, SNI e verifica del certificato restano quelli dell'URL.
+ */
+function pp_mm_remote_post_pinned( string $url, array $args, string $ip ) {
+	$parsed = wp_parse_url( $url );
+	$entry  = $parsed['host'] . ':' . ( $parsed['port'] ?? 443 ) . ':' . $ip;
+	$pin    = function ( $handle, $request, $request_url ) use ( $url, $entry ) {
+		if ( $request_url === $url ) {
+			curl_setopt( $handle, CURLOPT_RESOLVE, array( $entry ) );
+		}
+	};
+	add_action( 'http_api_curl', $pin, 10, 3 );
+	$response = wp_remote_post( $url, $args );
+	remove_action( 'http_api_curl', $pin, 10 );
+	return $response;
 }
 
 // ─── Cron ─────────────────────────────────────────────────────────────────────
@@ -208,8 +242,10 @@ function pp_mm_check_site( array $site, string $test_email = '' ): array {
 	$url   = trailingslashit( $site['url'] ) . 'wp-json/pp-mail-test/v1/check';
 	$token = wp_generate_password( 16, false );
 
-	// Ri-valida l'URL al momento della richiesta (SSRF TOCTOU: il DNS potrebbe essere cambiato dopo il salvataggio).
-	if ( ! pp_mm_is_url_allowed( $site['url'] ) ) {
+	// Ri-valida l'URL al momento della richiesta (il DNS potrebbe essere cambiato dopo il salvataggio)
+	// e connette proprio all'IP validato.
+	$ip = pp_mm_resolve_allowed_ip( $site['url'] );
+	if ( $ip === '' ) {
 		return array( 'success' => false, 'message' => 'URL non consentito', 'token' => $token );
 	}
 
@@ -223,11 +259,11 @@ function pp_mm_check_site( array $site, string $test_email = '' ): array {
 		$body['test_email'] = $test_email;
 	}
 	// Nessun redirect: un 3xx porterebbe la richiesta verso URL non validati da pp_mm_is_url_allowed() (SSRF).
-	$response = wp_remote_post( $url, array(
+	$response = pp_mm_remote_post_pinned( $url, array(
 		'timeout'     => 15,
 		'redirection' => 0,
 		'body'        => $body,
-	) );
+	), $ip );
 
 	if ( is_wp_error( $response ) ) {
 		return array( 'success' => false, 'message' => $response->get_error_message(), 'token' => $token );
@@ -463,7 +499,7 @@ function pp_mm_handle_actions() {
 
 	// ── Aggiungi sito ──────────────────────────────────────────────────────────
 	if ( $action === 'add_site' && check_admin_referer( 'pp_mm_add' ) ) {
-		$raw_url = trim( $_POST['pp_mm_url'] ?? '' );
+		$raw_url = trim( (string) wp_unslash( is_string( $_POST['pp_mm_url'] ?? null ) ? $_POST['pp_mm_url'] : '' ) );
 		if ( ! pp_mm_is_url_allowed( $raw_url ) ) {
 			wp_safe_redirect( add_query_arg( 'pp_mm_url_error', '1', admin_url( 'admin.php?page=pp-mail-monitor' ) ) );
 			exit;
@@ -525,7 +561,7 @@ function pp_mm_handle_actions() {
 		}
 
 		// URL: validato come in fase di inserimento (SSRF). Campo vuoto = URL invariato.
-		$raw_url = trim( wp_unslash( $_POST['pp_mm_url'] ?? '' ) );
+		$raw_url = trim( (string) wp_unslash( is_string( $_POST['pp_mm_url'] ?? null ) ? $_POST['pp_mm_url'] : '' ) );
 		$new_url = $raw_url !== '' ? esc_url_raw( $raw_url ) : $sites[ $idx ]['url'];
 		if ( $new_url !== $sites[ $idx ]['url'] && ! pp_mm_is_url_allowed( $new_url ) ) {
 			wp_safe_redirect( add_query_arg( 'pp_mm_url_error', '1', $page_url ) );
@@ -631,6 +667,10 @@ function pp_mm_handle_actions() {
 			if ( ! is_array( $raw ) ) {
 				continue;
 			}
+			// Il JSON può contenere qualsiasi tipo: i campi non stringa diventano '' (un array in trim() è un fatal error).
+			$raw = array_map( function ( $v ) {
+				return is_string( $v ) ? $v : '';
+			}, $raw );
 			$url    = esc_url_raw( trim( $raw['url'] ?? '' ) );
 			if ( ! pp_mm_is_url_allowed( $url ) ) {
 				continue;

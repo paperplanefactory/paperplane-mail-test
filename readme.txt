@@ -2,7 +2,7 @@
 Contributors: paperplanefactory
 Requires at least: 5.9
 Tested up to: 6.7
-Stable tag: 1.1.6
+Stable tag: 1.1.7
 License: GPLv2 or later
 
 Monitors the mail function on client sites from a central installation. Install on the assistance site.
@@ -14,6 +14,13 @@ PaperPlane Mail Test monitors the mail function on your client sites from a cent
 Each client site must have the PaperPlane Mail Test Child plugin installed and configured.
 
 == Changelog ==
+
+= 1.1.7 =
+* README: rimosso il riferimento alla costante `PP_MAIL_TEST_SECRET` del child (non più supportata dalla 1.4.9)
+* Security: il check si connette all'IP già validato (`CURLOPT_RESOLVE`): chiude DNS rebinding e connessioni IPv6 mai validate (prima veniva controllato solo l'IPv4 e il DNS veniva risolto una seconda volta)
+* Security: validati tutti gli IPv4 del dominio (`gethostbynamel()`), non solo il primo
+* Security: rifiutati gli URL con credenziali (`https://user:pass@host`)
+* Fix: import JSON con campi non stringa (es. `url` come array) non genera più un fatal error; stesso controllo sui form Aggiungi/Modifica sito
 
 = 1.1.6 =
 * Release: ogni release include `paperplane-mail-test.zip` (cartella a nome fisso `paperplane-mail-test/`), generato automaticamente da una GitHub Action
