@@ -2,7 +2,7 @@
 /**
  * Plugin Name: PaperPlane Mail Test
  * Description: Monitors mail function on client sites. Requires PaperPlane Mail Test Child installed on each site.
- * Version: 1.1.7
+ * Version: 1.1.8
  * Author: Paper Plane Factory
  * Text Domain: paperplane-mail-test
  * Domain Path: /languages
@@ -113,33 +113,48 @@ add_action( 'init', function () {
  * Protezione contro SSRF (Server-Side Request Forgery).
  */
 function pp_mm_is_url_allowed( string $url ): bool {
-	return pp_mm_resolve_allowed_ip( $url ) !== '';
+	return pp_mm_check_url( $url )['code'] === '';
 }
 
 /**
- * Risolve l'host dell'URL e restituisce il primo IPv4 pubblico, o '' se l'URL non è consentito.
+ * Restituisce il primo IPv4 pubblico dell'host, o '' se l'URL non è consentito.
+ */
+function pp_mm_resolve_allowed_ip( string $url ): string {
+	return pp_mm_check_url( $url )['ip'];
+}
+
+/**
+ * Valida l'URL e risolve l'host. Restituisce ['ip' => string, 'code' => string]:
+ * code è '' se l'URL è consentito, altrimenti il motivo del rifiuto
+ * ('https', 'credentials', 'host', 'dns', 'private'; testo in pp_mm_url_error_message()).
  * L'IP restituito va usato per la connessione (pp_mm_remote_post_pinned()): una seconda
  * risoluzione DNS potrebbe dare un altro indirizzo (DNS rebinding) o un IPv6 mai validato.
  */
-function pp_mm_resolve_allowed_ip( string $url ): string {
+function pp_mm_check_url( string $url ): array {
+	$fail   = function ( string $code ) {
+		return array( 'ip' => '', 'code' => $code );
+	};
 	$parsed = wp_parse_url( $url );
 	if ( ! $parsed || ( $parsed['scheme'] ?? '' ) !== 'https' ) {
-		return '';
+		return $fail( 'https' );
 	}
 	// Credenziali nell'URL (https://user:pass@host): verrebbero salvate in chiaro e inviate al sito.
 	if ( isset( $parsed['user'] ) || isset( $parsed['pass'] ) ) {
-		return '';
+		return $fail( 'credentials' );
 	}
 	$host = $parsed['host'] ?? '';
 	if ( ! $host ) {
-		return '';
+		return $fail( 'https' );
 	}
 	if ( in_array( strtolower( $host ), array( 'localhost', '::1' ), true ) ) {
-		return '';
+		return $fail( 'private' );
 	}
 	// Solo IPv4: i siti IPv6-only non sono supportati (limitazione nota).
 	$ips = filter_var( $host, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 ) ? array( $host ) : gethostbynamel( $host );
-	foreach ( (array) $ips as $ip ) {
+	if ( empty( $ips ) ) {
+		return $fail( 'dns' );
+	}
+	foreach ( $ips as $ip ) {
 		if ( filter_var( $ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE ) === false ) {
 			continue;
 		}
@@ -147,9 +162,22 @@ function pp_mm_resolve_allowed_ip( string $url ): string {
 		if ( ( ip2long( $ip ) & 0xFFC00000 ) === 0x64400000 ) {
 			continue;
 		}
-		return $ip;
+		return array( 'ip' => $ip, 'code' => '' );
 	}
-	return '';
+	return $fail( 'private' );
+}
+
+function pp_mm_url_error_message( string $code ): string {
+	switch ( $code ) {
+		case 'credentials':
+			return __( 'Invalid URL: credentials (user:password@) are not allowed in the address.', 'paperplane-mail-test' );
+		case 'dns':
+			return __( 'The domain does not resolve (DNS): check that the domain is active and its DNS records are correct.', 'paperplane-mail-test' );
+		case 'private':
+			return __( 'URL not allowed: the domain points to a private or reserved address. Only public sites can be monitored.', 'paperplane-mail-test' );
+		default:
+			return __( 'Invalid URL. Only https:// addresses pointing to public sites are accepted.', 'paperplane-mail-test' );
+	}
 }
 
 /**
@@ -193,63 +221,95 @@ function pp_mm_run_checks() {
 		return;
 	}
 
-	$now     = time();
-	$updated = false;
-
-	foreach ( $sites as $i => &$site ) {
-		$freq       = $site['frequency'] ?? 'daily';
-		$last_check = (int) ( $site['last_check'] ?? 0 );
-
-		$is_due = false;
-		if ( $freq === 'hourly' ) {
-			$is_due = ( $now - $last_check ) >= HOUR_IN_SECONDS;
-		} else {
-			$is_due = ( $now - $last_check ) >= 23 * HOUR_IN_SECONDS;
-		}
-
-		if ( ! $is_due ) {
-			continue;
-		}
-
-		$silent_test = get_option( PP_MM_OPTION_SILENT_TEST, '' );
-		$result      = pp_mm_check_site( $site, $silent_test );
-
-		$prev_status               = $site['last_status'] ?? '';
-		$site['last_check']        = $now;
-		$site['last_status']       = $result['success'] ? 'ok' : 'error';
-		$site['last_message']      = $result['message'] ?? '';
-		$site['last_check_token']  = $result['token'] ?? '';
-		$updated                   = true;
-
-		// Notifica solo al passaggio da OK a KO (o primo KO)
-		if ( ! $result['success'] && $prev_status !== 'error' ) {
-			pp_mm_send_alert( $site, $result['message'] );
-		}
+	// Evita due run sovrapposti (WP-Cron può partire due volte): alert doppi e stati sovrascritti.
+	if ( get_transient( 'pp_mm_checks_running' ) ) {
+		return;
 	}
-	unset( $site );
+	set_transient( 'pp_mm_checks_running', 1, 15 * MINUTE_IN_SECONDS );
 
-	if ( $updated ) {
-		update_option( PP_MM_OPTION_SITES, $sites );
+	$now         = time();
+	$silent_test = get_option( PP_MM_OPTION_SILENT_TEST, '' );
+
+	try {
+		foreach ( $sites as $i => &$site ) {
+			$freq       = $site['frequency'] ?? 'daily';
+			$last_check = (int) ( $site['last_check'] ?? 0 );
+			$interval   = $freq === 'hourly' ? HOUR_IN_SECONDS : 23 * HOUR_IN_SECONDS;
+			if ( ( $now - $last_check ) < $interval ) {
+				continue;
+			}
+
+			// Ogni sito può richiedere fino a ~35 s (timeout + nuovo tentativo): il limite di
+			// esecuzione riparte per ogni sito, così molti siti giù non interrompono il run.
+			if ( function_exists( 'set_time_limit' ) ) {
+				@set_time_limit( 60 );
+			}
+
+			pp_mm_apply_result( $site, pp_mm_check_site( $site, $silent_test ) );
+
+			// Salvataggio dopo ogni sito: se PHP si interrompe, i siti già controllati restano
+			// aggiornati e gli alert già inviati non vengono ripetuti al run successivo.
+			update_option( PP_MM_OPTION_SITES, $sites );
+		}
+		unset( $site );
+
+		pp_mm_maybe_send_weekly_report();
+	} finally {
+		delete_transient( 'pp_mm_checks_running' );
 	}
-
-	pp_mm_maybe_send_weekly_report();
 }
 
 /**
- * Chiama l'endpoint del sito e restituisce array ['success', 'message', 'token'].
+ * Aggiorna lo stato del sito con l'esito del check e invia le notifiche al cambio di stato:
+ * alert al passaggio a KO (o primo KO), notifica di ripristino al ritorno da KO a OK.
+ */
+function pp_mm_apply_result( array &$site, array $result ): void {
+	$prev_status = $site['last_status'] ?? '';
+
+	$site['last_check']       = time();
+	$site['last_status']      = $result['success'] ? 'ok' : 'error';
+	$site['last_message']     = $result['message'] ?? '';
+	$site['last_detail']      = $result['detail'] ?? '';
+	$site['last_check_token'] = $result['token'] ?? '';
+
+	if ( ! $result['success'] ) {
+		if ( $prev_status !== 'error' ) {
+			$site['error_since'] = $site['last_check'];
+			pp_mm_send_alert( $site, $result['message'] );
+		}
+		return;
+	}
+
+	if ( $prev_status === 'error' ) {
+		pp_mm_send_recovery( $site );
+	}
+	$site['error_since'] = 0;
+}
+
+/**
+ * Chiama l'endpoint del sito e restituisce array ['success', 'message', 'detail', 'token'].
+ * message: causa leggibile; detail: informazioni tecniche (header server, estratto della risposta).
  */
 function pp_mm_check_site( array $site, string $test_email = '' ): array {
-	$url   = trailingslashit( $site['url'] ) . 'wp-json/pp-mail-test/v1/check';
-	$token = wp_generate_password( 16, false );
+	$url    = trailingslashit( $site['url'] ) . 'wp-json/pp-mail-test/v1/check';
+	$token  = wp_generate_password( 16, false );
+	$result = function ( bool $success, string $message, string $detail = '' ) use ( $token ) {
+		return array( 'success' => $success, 'message' => $message, 'detail' => $detail, 'token' => $token );
+	};
 
 	// Ri-valida l'URL al momento della richiesta (il DNS potrebbe essere cambiato dopo il salvataggio)
 	// e connette proprio all'IP validato.
-	$ip = pp_mm_resolve_allowed_ip( $site['url'] );
-	if ( $ip === '' ) {
-		return array( 'success' => false, 'message' => 'URL non consentito', 'token' => $token );
+	$url_check = pp_mm_check_url( $site['url'] );
+	if ( $url_check['code'] !== '' ) {
+		return $result( false, pp_mm_url_error_message( $url_check['code'] ) );
 	}
 
-	$secret = pp_mm_decrypt( $site['secret'] ?? '' );
+	// Chiave salvata ma non più decifrabile: le chiavi di sicurezza di WordPress (AUTH_KEY) di questo sito sono cambiate.
+	$stored = $site['secret'] ?? '';
+	$secret = pp_mm_decrypt( $stored );
+	if ( $stored !== '' && $secret === '' ) {
+		return $result( false, __( 'The secret key saved here can no longer be decrypted (the WordPress security keys of this site have changed). Re-enter the key with Edit.', 'paperplane-mail-test' ) );
+	}
 
 	$body = array(
 		'pp_secret'      => $secret,
@@ -258,40 +318,95 @@ function pp_mm_check_site( array $site, string $test_email = '' ): array {
 	if ( $test_email ) {
 		$body['test_email'] = $test_email;
 	}
-	// Nessun redirect: un 3xx porterebbe la richiesta verso URL non validati da pp_mm_is_url_allowed() (SSRF).
-	$response = pp_mm_remote_post_pinned( $url, array(
+	// Nessun redirect: un 3xx porterebbe la richiesta verso URL non validati da pp_mm_check_url() (SSRF).
+	$args = array(
 		'timeout'     => 15,
 		'redirection' => 0,
 		'body'        => $body,
-	), $ip );
+	);
+
+	$response = pp_mm_remote_post_pinned( $url, $args, $url_check['ip'] );
+	// Un nuovo tentativo per gli errori probabilmente temporanei (rete, timeout, 502/503/504),
+	// così un singolo problema di rete passeggero non genera un alert.
+	if ( is_wp_error( $response ) || in_array( wp_remote_retrieve_response_code( $response ), array( 502, 503, 504 ), true ) ) {
+		sleep( 5 );
+		$response = pp_mm_remote_post_pinned( $url, $args, $url_check['ip'] );
+	}
 
 	if ( is_wp_error( $response ) ) {
-		return array( 'success' => false, 'message' => $response->get_error_message(), 'token' => $token );
+		return $result( false, sprintf( __( 'Site not reachable: %s', 'paperplane-mail-test' ), $response->get_error_message() ) );
 	}
 
-	$code = wp_remote_retrieve_response_code( $response );
+	$code = (int) wp_remote_retrieve_response_code( $response );
+	$raw  = wp_remote_retrieve_body( $response );
+	$json = json_decode( $raw, true );
+
 	if ( $code !== 200 ) {
-		return array( 'success' => false, 'message' => 'HTTP ' . $code, 'token' => $token );
+		return $result( false, pp_mm_describe_http_error( $code, $response, is_array( $json ) ? $json : array() ), pp_mm_response_detail( $response ) );
 	}
-
-	$body = json_decode( wp_remote_retrieve_body( $response ), true );
-	if ( ! is_array( $body ) ) {
-		return array( 'success' => false, 'message' => __( 'Invalid response', 'paperplane-mail-test' ), 'token' => $token );
+	if ( ! is_array( $json ) ) {
+		return $result( false, __( 'Invalid response: HTTP 200 but not the expected data (cache plugin, maintenance page or PHP output).', 'paperplane-mail-test' ), pp_mm_response_detail( $response ) );
 	}
+	if ( empty( $json['success'] ) ) {
+		return $result( false, sprintf( __( 'wp_mail() failed on the client site: check its mail/SMTP configuration. (%s)', 'paperplane-mail-test' ), (string) ( $json['message'] ?? '' ) ) );
+	}
+	return $result( true, (string) ( $json['message'] ?? '' ) );
+}
 
-	return array(
-		'success' => ! empty( $body['success'] ),
-		'message' => $body['message'] ?? '',
-		'token'   => $token,
-	);
+/**
+ * Causa leggibile di una risposta HTTP diversa da 200.
+ */
+function pp_mm_describe_http_error( int $code, $response, array $json ): string {
+	$rest_code = (string) ( $json['code'] ?? '' );
+
+	if ( $rest_code === 'pp_mt_key_unreadable' ) {
+		$text = __( 'The secret key on the client site can no longer be decrypted (its WordPress security keys have changed). Generate a new key on the client site and update it here with Edit.', 'paperplane-mail-test' );
+	} elseif ( $code >= 300 && $code < 400 ) {
+		$location = (string) wp_remote_retrieve_header( $response, 'location' );
+		$text     = sprintf( __( 'The site redirects to %s: update the site URL with Edit.', 'paperplane-mail-test' ), $location !== '' ? $location : '?' );
+	} elseif ( $code === 401 && $rest_code === 'rest_forbidden' ) {
+		$text = __( 'Authentication refused: wrong secret key, or too many calls in a short time.', 'paperplane-mail-test' );
+	} elseif ( $code === 401 || $code === 403 ) {
+		$text = __( 'Access denied: a firewall or security plugin is blocking the REST API.', 'paperplane-mail-test' );
+	} elseif ( $code === 404 && $rest_code === 'rest_no_route' ) {
+		$text = __( 'Endpoint not found: the PaperPlane Mail Test Child plugin is not active on the site.', 'paperplane-mail-test' );
+	} elseif ( $code === 404 ) {
+		$text = __( 'REST API not reachable: disabled or blocked on the site.', 'paperplane-mail-test' );
+	} elseif ( $code === 503 ) {
+		$text = __( 'Site unavailable: maintenance mode or overloaded server.', 'paperplane-mail-test' );
+	} elseif ( $code === 502 || $code === 504 ) {
+		$text = __( 'Gateway error: the server or proxy in front of the site is not responding.', 'paperplane-mail-test' );
+	} elseif ( $code >= 500 ) {
+		$text = __( 'Server error on the client site (for example a PHP error).', 'paperplane-mail-test' );
+	} else {
+		$text = __( 'Unexpected response.', 'paperplane-mail-test' );
+	}
+	return 'HTTP ' . $code . ' — ' . $text;
+}
+
+/**
+ * Dettaglio tecnico della risposta: header Server e un breve estratto del contenuto.
+ */
+function pp_mm_response_detail( $response ): string {
+	$parts  = array();
+	$server = (string) wp_remote_retrieve_header( $response, 'server' );
+	if ( $server !== '' ) {
+		$parts[] = 'Server: ' . $server;
+	}
+	$text = trim( preg_replace( '/\s+/', ' ', wp_strip_all_tags( (string) wp_remote_retrieve_body( $response ) ) ) );
+	if ( $text !== '' ) {
+		$parts[] = mb_strimwidth( $text, 0, 160, '…' );
+	}
+	return implode( ' · ', $parts );
+}
+
+function pp_mm_alert_recipients(): array {
+	$notify = get_option( PP_MM_OPTION_NOTIFY, '' );
+	return $notify ? array_filter( array_map( 'sanitize_email', array_map( 'trim', explode( ',', $notify ) ) ) ) : array();
 }
 
 function pp_mm_send_alert( array $site, string $message ) {
-	$notify = get_option( PP_MM_OPTION_NOTIFY, '' );
-	if ( ! $notify ) {
-		return;
-	}
-	$recipients = array_filter( array_map( 'sanitize_email', array_map( 'trim', explode( ',', $notify ) ) ) );
+	$recipients = pp_mm_alert_recipients();
 	if ( empty( $recipients ) ) {
 		return;
 	}
@@ -300,6 +415,25 @@ function pp_mm_send_alert( array $site, string $message ) {
 	$body    = '<p>' . sprintf( __( 'The mail function test on %s failed.', 'paperplane-mail-test' ), '<strong>' . esc_html( $label ) . '</strong>' ) . '</p>'
 		. '<p><strong>' . __( 'URL:', 'paperplane-mail-test' ) . '</strong> ' . esc_html( $site['url'] ) . '</p>'
 		. '<p><strong>' . __( 'Error:', 'paperplane-mail-test' ) . '</strong> ' . esc_html( $message ) . '</p>'
+		. ( ! empty( $site['last_detail'] ) ? '<p><strong>' . __( 'Details:', 'paperplane-mail-test' ) . '</strong> ' . esc_html( $site['last_detail'] ) . '</p>' : '' )
+		. '<p><strong>' . __( 'Date:', 'paperplane-mail-test' ) . '</strong> ' . date_i18n( 'Y/m/d H:i' ) . '</p>';
+	wp_mail( $recipients, $subject, $body, array( 'Content-Type: text/html; charset=UTF-8' ) );
+}
+
+/**
+ * Notifica di ripristino: il sito torna OK dopo un KO.
+ */
+function pp_mm_send_recovery( array $site ) {
+	$recipients = pp_mm_alert_recipients();
+	if ( empty( $recipients ) ) {
+		return;
+	}
+	$label   = $site['label'] ?: $site['url'];
+	$since   = (int) ( $site['error_since'] ?? 0 );
+	$subject = sprintf( __( '[PaperPlane Mail Test resolved] Mail OK: %s', 'paperplane-mail-test' ), $label );
+	$body    = '<p>' . sprintf( __( 'The mail function on %s works again.', 'paperplane-mail-test' ), '<strong>' . esc_html( $label ) . '</strong>' ) . '</p>'
+		. '<p><strong>' . __( 'URL:', 'paperplane-mail-test' ) . '</strong> ' . esc_html( $site['url'] ) . '</p>'
+		. ( $since ? '<p><strong>' . __( 'KO since:', 'paperplane-mail-test' ) . '</strong> ' . wp_date( 'Y/m/d H:i', $since ) . ' (' . human_time_diff( $since, time() ) . ')</p>' : '' )
 		. '<p><strong>' . __( 'Date:', 'paperplane-mail-test' ) . '</strong> ' . date_i18n( 'Y/m/d H:i' ) . '</p>';
 	wp_mail( $recipients, $subject, $body, array( 'Content-Type: text/html; charset=UTF-8' ) );
 }
@@ -473,18 +607,10 @@ function pp_mm_register_settings() {
 
 /**
  * Check manuale ("Controlla ora", "Salva e verifica"): il test va al destinatario degli alert.
- * Aggiorna lo stato del sito, invia l'alert al passaggio a KO e salva la lista.
+ * Aggiorna lo stato del sito (con alert e notifica di ripristino) e salva la lista.
  */
 function pp_mm_manual_check( array &$sites, int $idx ): void {
-	$result                            = pp_mm_check_site( $sites[ $idx ], get_option( PP_MM_OPTION_NOTIFY, '' ) );
-	$prev_status                       = $sites[ $idx ]['last_status'] ?? '';
-	$sites[ $idx ]['last_check']       = time();
-	$sites[ $idx ]['last_status']      = $result['success'] ? 'ok' : 'error';
-	$sites[ $idx ]['last_message']     = $result['message'] ?? '';
-	$sites[ $idx ]['last_check_token'] = $result['token'] ?? '';
-	if ( ! $result['success'] && $prev_status !== 'error' ) {
-		pp_mm_send_alert( $sites[ $idx ], $result['message'] );
-	}
+	pp_mm_apply_result( $sites[ $idx ], pp_mm_check_site( $sites[ $idx ], get_option( PP_MM_OPTION_NOTIFY, '' ) ) );
 	update_option( PP_MM_OPTION_SITES, $sites );
 }
 
@@ -500,8 +626,9 @@ function pp_mm_handle_actions() {
 	// ── Aggiungi sito ──────────────────────────────────────────────────────────
 	if ( $action === 'add_site' && check_admin_referer( 'pp_mm_add' ) ) {
 		$raw_url = trim( (string) wp_unslash( is_string( $_POST['pp_mm_url'] ?? null ) ? $_POST['pp_mm_url'] : '' ) );
-		if ( ! pp_mm_is_url_allowed( $raw_url ) ) {
-			wp_safe_redirect( add_query_arg( 'pp_mm_url_error', '1', admin_url( 'admin.php?page=pp-mail-monitor' ) ) );
+		$url_error = pp_mm_check_url( $raw_url )['code'];
+		if ( $url_error !== '' ) {
+			wp_safe_redirect( add_query_arg( 'pp_mm_url_error', $url_error, admin_url( 'admin.php?page=pp-mail-monitor' ) ) );
 			exit;
 		}
 		$sites   = get_option( PP_MM_OPTION_SITES, array() );
@@ -563,8 +690,9 @@ function pp_mm_handle_actions() {
 		// URL: validato come in fase di inserimento (SSRF). Campo vuoto = URL invariato.
 		$raw_url = trim( (string) wp_unslash( is_string( $_POST['pp_mm_url'] ?? null ) ? $_POST['pp_mm_url'] : '' ) );
 		$new_url = $raw_url !== '' ? esc_url_raw( $raw_url ) : $sites[ $idx ]['url'];
-		if ( $new_url !== $sites[ $idx ]['url'] && ! pp_mm_is_url_allowed( $new_url ) ) {
-			wp_safe_redirect( add_query_arg( 'pp_mm_url_error', '1', $page_url ) );
+		$url_error = $new_url !== $sites[ $idx ]['url'] ? pp_mm_check_url( $new_url )['code'] : '';
+		if ( $url_error !== '' ) {
+			wp_safe_redirect( add_query_arg( 'pp_mm_url_error', $url_error, $page_url ) );
 			exit;
 		}
 
@@ -586,6 +714,8 @@ function pp_mm_handle_actions() {
 			$sites[ $idx ]['last_status']      = '';
 			$sites[ $idx ]['last_message']     = '';
 			$sites[ $idx ]['last_check_token'] = '';
+			$sites[ $idx ]['last_detail']      = '';
+			$sites[ $idx ]['error_since']      = 0;
 		}
 
 		if ( ! empty( $_POST['pp_mm_verify'] ) ) {
@@ -734,7 +864,7 @@ function pp_mm_render_sites_page() {
 			<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Site updated.', 'paperplane-mail-test' ); ?></p></div>
 		<?php endif; ?>
 		<?php if ( isset( $_GET['pp_mm_url_error'] ) ) : ?>
-			<div class="notice notice-error is-dismissible"><p><?php esc_html_e( 'Invalid URL. Only https:// addresses pointing to public sites are accepted.', 'paperplane-mail-test' ); ?></p></div>
+			<div class="notice notice-error is-dismissible"><p><?php echo esc_html( pp_mm_url_error_message( sanitize_key( $_GET['pp_mm_url_error'] ) ) ); ?></p></div>
 		<?php endif; ?>
 		<?php if ( isset( $_GET['pp_mm_imported'] ) ) : ?>
 			<div class="notice notice-success is-dismissible"><p>
@@ -809,8 +939,16 @@ function pp_mm_render_sites_page() {
 					<td><?php echo esc_html( $next_check ); ?></td>
 					<td style="color:<?php echo $color; ?>;font-weight:bold">
 						<?php echo $label_st; ?>
-						<?php if ( $status === 'error' && $site['last_message'] ) : ?>
-							<br><span style="font-weight:normal;font-size:.85em"><?php echo esc_html( $site['last_message'] ); ?></span>
+						<?php if ( $status === 'error' ) : ?>
+							<?php if ( $site['last_message'] ) : ?>
+								<br><span style="font-weight:normal;font-size:.85em"><?php echo esc_html( $site['last_message'] ); ?></span>
+							<?php endif; ?>
+							<?php if ( ! empty( $site['last_detail'] ) ) : ?>
+								<br><span style="font-weight:normal;font-size:.8em;color:#787c82"><?php echo esc_html( $site['last_detail'] ); ?></span>
+							<?php endif; ?>
+							<?php if ( ! empty( $site['error_since'] ) ) : ?>
+								<br><span style="font-weight:normal;font-size:.8em;color:#787c82"><?php printf( esc_html__( 'KO since %1$s (%2$s)', 'paperplane-mail-test' ), esc_html( wp_date( 'Y/m/d H:i', (int) $site['error_since'] ) ), esc_html( human_time_diff( (int) $site['error_since'], time() ) ) ); ?></span>
+							<?php endif; ?>
 						<?php endif; ?>
 					</td>
 					<td>

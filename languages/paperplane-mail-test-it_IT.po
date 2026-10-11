@@ -13,10 +13,6 @@ msgstr ""
 "X-Generator: manual\n"
 "X-Domain: paperplane-mail-test\n"
 
-#: paperplane-mail-test.php:104
-msgid "Invalid response"
-msgstr "Risposta non valida"
-
 #: paperplane-mail-test.php:120
 msgid "[PaperPlane Mail Test issue] Mail KO: %s"
 msgstr "[PaperPlane Mail Test issue] Mail KO: %s"
@@ -313,3 +309,69 @@ msgstr "Salva e verifica"
 
 msgid "Add and verify"
 msgstr "Aggiungi e verifica"
+
+msgid "Access denied: a firewall or security plugin is blocking the REST API."
+msgstr "Accesso negato: un firewall o un plugin di sicurezza blocca la REST API."
+
+msgid "Authentication refused: wrong secret key, or too many calls in a short time."
+msgstr "Autenticazione rifiutata: chiave segreta errata, o troppe chiamate in poco tempo."
+
+msgid "Details:"
+msgstr "Dettagli:"
+
+msgid "Endpoint not found: the PaperPlane Mail Test Child plugin is not active on the site."
+msgstr "Endpoint non trovato: il plugin PaperPlane Mail Test Child non è attivo sul sito."
+
+msgid "Gateway error: the server or proxy in front of the site is not responding."
+msgstr "Errore di gateway: il server o il proxy davanti al sito non risponde."
+
+msgid "Invalid URL: credentials (user:password@) are not allowed in the address."
+msgstr "URL non valido: le credenziali (utente:password@) non sono ammesse nell'indirizzo."
+
+msgid "Invalid response: HTTP 200 but not the expected data (cache plugin, maintenance page or PHP output)."
+msgstr "Risposta non valida: HTTP 200 ma senza i dati attesi (plugin di cache, pagina di manutenzione o output PHP)."
+
+msgid "KO since %1$s (%2$s)"
+msgstr "KO dal %1$s (%2$s)"
+
+msgid "KO since:"
+msgstr "KO dal:"
+
+msgid "REST API not reachable: disabled or blocked on the site."
+msgstr "REST API non raggiungibile: disattivata o bloccata sul sito."
+
+msgid "Server error on the client site (for example a PHP error)."
+msgstr "Errore del server sul sito client (per esempio un errore PHP)."
+
+msgid "Site not reachable: %s"
+msgstr "Sito non raggiungibile: %s"
+
+msgid "Site unavailable: maintenance mode or overloaded server."
+msgstr "Sito non disponibile: modalità manutenzione o server sovraccarico."
+
+msgid "The domain does not resolve (DNS): check that the domain is active and its DNS records are correct."
+msgstr "Il dominio non si risolve (DNS): verifica che il dominio sia attivo e che i record DNS siano corretti."
+
+msgid "The mail function on %s works again."
+msgstr "La funzione mail su %s funziona di nuovo."
+
+msgid "The secret key on the client site can no longer be decrypted (its WordPress security keys have changed). Generate a new key on the client site and update it here with Edit."
+msgstr "La chiave segreta sul sito client non è più decifrabile (le sue chiavi di sicurezza di WordPress sono cambiate). Genera una nuova chiave sul sito client e aggiornala qui con Modifica."
+
+msgid "The secret key saved here can no longer be decrypted (the WordPress security keys of this site have changed). Re-enter the key with Edit."
+msgstr "La chiave segreta salvata qui non è più decifrabile (le chiavi di sicurezza di WordPress di questo sito sono cambiate). Reinserisci la chiave con Modifica."
+
+msgid "The site redirects to %s: update the site URL with Edit."
+msgstr "Il sito reindirizza a %s: aggiorna l'URL del sito con Modifica."
+
+msgid "URL not allowed: the domain points to a private or reserved address. Only public sites can be monitored."
+msgstr "URL non consentito: il dominio punta a un indirizzo privato o riservato. Si possono monitorare solo siti pubblici."
+
+msgid "Unexpected response."
+msgstr "Risposta inattesa."
+
+msgid "[PaperPlane Mail Test resolved] Mail OK: %s"
+msgstr "[PaperPlane Mail Test risolto] Mail OK: %s"
+
+msgid "wp_mail() failed on the client site: check its mail/SMTP configuration. (%s)"
+msgstr "wp_mail() non riuscita sul sito client: controlla la sua configurazione mail/SMTP. (%s)"

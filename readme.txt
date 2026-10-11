@@ -2,7 +2,7 @@
 Contributors: paperplanefactory
 Requires at least: 5.9
 Tested up to: 6.7
-Stable tag: 1.1.7
+Stable tag: 1.1.8
 License: GPLv2 or later
 
 Monitors the mail function on client sites from a central installation. Install on the assistance site.
@@ -14,6 +14,15 @@ PaperPlane Mail Test monitors the mail function on your client sites from a cent
 Each client site must have the PaperPlane Mail Test Child plugin installed and configured.
 
 == Changelog ==
+
+= 1.1.8 =
+* Down management: lo stato di ogni sito viene salvato subito dopo il suo check (prima solo a fine run: se PHP si interrompeva per `max_execution_time` gli stati andavano persi e gli alert venivano ripetuti); limite di esecuzione rinnovato per ogni sito; lock per evitare run sovrapposti
+* Down management: un nuovo tentativo dopo 5 secondi per errori di rete, timeout e HTTP 502/503/504 prima di dichiarare KO
+* Notifica di ripristino quando un sito torna OK dopo un KO, con data di inizio e durata del KO
+* Lista siti: per ogni sito in KO mostra la causa leggibile, i dettagli tecnici (header Server, estratto della risposta) e da quando è in KO; le stesse informazioni sono nell'alert
+* Messaggi: distinti DNS che non risolve, URL non consentito, credenziali nell'URL, redirect (con destinazione), autenticazione rifiutata, firewall/plugin di sicurezza, child non attivo, manutenzione, errori server, risposta non valida, wp_mail() fallita; errori specifici anche nei form Aggiungi/Modifica sito
+* Chiavi di sicurezza WordPress cambiate: se una chiave salvata non è più decifrabile (sul main o sul child) viene mostrata la causa invece di un generico HTTP 401
+* README: sezioni su gestione dei siti down/in errore e rotazione della chiave
 
 = 1.1.7 =
 * README: rimosso il riferimento alla costante `PP_MAIL_TEST_SECRET` del child (non più supportata dalla 1.4.9)

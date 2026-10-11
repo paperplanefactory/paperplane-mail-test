@@ -108,6 +108,9 @@ When the URL or the key changes, the site's status is reset. **Save and verify**
 2. The plugin sends an authenticated `POST` request to `/wp-json/pp-mail-test/v1/check` on the client site
 3. The child plugin runs `wp_mail()` and returns `true` or `false`
 4. If the result is KO **and the previous check was OK** (state change only), an alert email is sent to the configured recipients
+5. When a site that was KO works again, a recovery email is sent
+
+The state of each site is saved right after its check, and only one check run can be active at a time.
 
 Authentication uses a secret key configured on each client site. The key is generated automatically by the child plugin and stored encrypted (AES-256-CBC) in the site's `wp_options` table.
 
@@ -115,9 +118,43 @@ Authentication uses a secret key configured on each client site. The key is gene
 
 ## Features
 
-### KO alert email
+### KO alert and recovery emails
 
-Sent immediately when a site's mail function fails after a previously successful check. Includes site name, URL, error message, and timestamp.
+- **KO alert** — sent when a site's mail function fails after a previously successful check. Includes site name, URL, cause, technical details and timestamp. No further alerts are sent while the site stays KO.
+- **Recovery** — sent when a site that was KO works again, with the time it went KO and how long it lasted.
+
+### When a site is down or returns an error
+
+- **Not reachable** (timeout, connection refused, SSL error) and temporary errors (HTTP 502, 503, 504) are retried once after 5 seconds before the site is marked KO, so a short network glitch does not trigger an alert.
+- Each request has a 15-second timeout and does not follow redirects.
+- In **Mail Monitor → Monitored Sites**, every KO site shows the **cause**, technical details (server header, short excerpt of the response) and **since when** it has been KO. Typical causes:
+
+| Cause shown | Meaning |
+|---|---|
+| Site not reachable | Timeout, connection refused or SSL error |
+| The domain does not resolve (DNS) | Expired domain or DNS problem |
+| HTTP 401 — Authentication refused | Wrong secret key, or too many calls in a short time |
+| HTTP 401/403 — Access denied | A firewall or security plugin (e.g. Cloudflare, Wordfence) blocks the REST API |
+| HTTP 404 — Endpoint not found | The child plugin is not active |
+| HTTP 404 — REST API not reachable | REST API disabled or blocked |
+| HTTP 3xx — The site redirects to … | The site URL changed: update it with **Edit** |
+| HTTP 503 — Site unavailable | Maintenance mode or overloaded server |
+| HTTP 5xx — Server error | For example a PHP error on the client site |
+| Invalid response | HTTP 200 but not the expected data (cache plugin, maintenance page) |
+| wp_mail() failed | The client site could not send the email: check its mail/SMTP configuration |
+| Secret key can no longer be decrypted | The WordPress security keys (salts) changed: generate a new key on the client and/or re-enter it here |
+
+### Secret key rotation
+
+1. On the client site: **Tools → PaperPlane Mail Test → Generate new key**. The old key stops working immediately.
+2. On this site: **Edit** the monitored site, paste the new key into **New secret key** and click **Save and verify**.
+
+Between the two steps checks fail. Saving a new key resets the site status, so a check in that window does not leave the site stuck in KO.
+
+**WordPress security keys (salts).** Secret keys are stored encrypted with a key derived from `AUTH_KEY`. If the salts are regenerated (for example after a security incident), the stored keys can no longer be decrypted:
+
+- on a **client site**, the plugin shows an error on its page and in the dashboard — generate a new key and update it here;
+- on **this site**, every monitored site shows "The secret key saved here can no longer be decrypted" — re-enter each key with **Edit**.
 
 ### Silent test address
 
