@@ -105,7 +105,7 @@ When the URL or the key changes, the site's status is reset. **Save and verify**
 ## How it works
 
 1. WP-Cron triggers a check at the configured frequency for each site
-2. The plugin sends an authenticated `POST` request to `/wp-json/pp-mail-test/v1/check` on the client site
+2. The plugin sends a signed `POST` request to `/wp-json/pp-mail-test/v1/check` on the client site
 3. The child plugin runs `wp_mail()` and returns `true` or `false`
 4. If the result is KO **and the previous check was OK** (state change only), an alert email is sent to the configured recipients
 5. When a site that was KO works again, a recovery email is sent
@@ -113,6 +113,8 @@ When the URL or the key changes, the site's status is reset. **Save and verify**
 The state of each site is saved right after its check, and only one check run can be active at a time.
 
 Authentication uses a secret key configured on each client site. The key is generated automatically by the child plugin and stored encrypted (AES-256-CBC) in the site's `wp_options` table.
+
+**Signed requests (since 1.1.10, requires child 1.4.11 or later).** The secret key is never sent. Each request carries a timestamp, a random single-use nonce and an HMAC-SHA256 signature computed with the key. The child accepts a request only if the signature is valid, the timestamp is within 5 minutes and the nonce has not been used before, so an intercepted request cannot be replayed. The clocks of both servers must be correct (NTP).
 
 ---
 
@@ -133,7 +135,9 @@ Authentication uses a secret key configured on each client site. The key is gene
 |---|---|
 | Site not reachable | Timeout, connection refused or SSL error |
 | The domain does not resolve (DNS) | Expired domain or DNS problem |
-| HTTP 401 — Authentication refused | Wrong secret key, or too many calls in a short time |
+| HTTP 401 — Authentication refused | Wrong secret key, too many calls in a short time, or child plugin older than 1.4.11 |
+| HTTP 401 — Clocks differ by more than 5 minutes | Check the time (NTP) on both servers |
+| HTTP 401 — Request rejected as already received | Replay protection; if it repeats, check the server clocks |
 | HTTP 401/403 — Access denied | A firewall or security plugin (e.g. Cloudflare, Wordfence) blocks the REST API |
 | HTTP 404 — Endpoint not found | The child plugin is not active |
 | HTTP 404 — REST API not reachable | REST API disabled or blocked |
@@ -172,8 +176,10 @@ An optional weekly email listing all monitored sites with their current status, 
 
 Transfer the list of monitored sites between installations:
 
-- **Export** — downloads a `.json` file containing all sites and their secret keys. Keep this file safe, as it contains credentials.
-- **Import** — upload a previously exported file. Choose between replacing all existing sites or merging with them. The secret keys in the file must already be configured on the respective client sites.
+- **Export** — downloads a `.json` file with all monitored sites. Secret keys are never exported in clear. Choose one of:
+  - **Protect with a password (recommended)** — keys are encrypted with AES-256-GCM, using a key derived from the password (PBKDF2-SHA256, 600,000 iterations, random salt). Minimum 12 characters. Keep the password separate from the file: it cannot be recovered.
+  - **Do not export the keys** — the file contains only names, URLs and frequencies. After importing, enter the key of each site with **Edit**; until then those sites are shown as KO with the cause, without sending alerts.
+- **Import** — upload a previously exported file and, for password-protected exports, enter the password. With a wrong password or a modified file nothing is imported. Choose between replacing all existing sites or adding to them. The keys in the file must still be the ones active on the client sites. Export files created before 1.1.10 (keys in clear) can still be imported.
 
 ---
 

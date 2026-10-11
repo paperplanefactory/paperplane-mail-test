@@ -2,7 +2,7 @@
 Contributors: paperplanefactory
 Requires at least: 5.9
 Tested up to: 6.7
-Stable tag: 1.1.9
+Stable tag: 1.1.10
 License: GPLv2 or later
 
 Monitors the mail function on client sites from a central installation. Install on the assistance site.
@@ -14,6 +14,13 @@ PaperPlane Mail Test monitors the mail function on your client sites from a cent
 Each client site must have the PaperPlane Mail Test Child plugin installed and configured.
 
 == Changelog ==
+
+= 1.1.10 =
+* Security: richieste firmate. La chiave segreta non viene più inviata: ogni richiesta ha timestamp, nonce monouso e firma HMAC-SHA256 calcolata con la chiave; il child rifiuta firme errate, timestamp fuori dai 5 minuti e nonce già usati (protezione replay). Richiede il child 1.4.11 o successivo: aggiornare prima tutti i child
+* Messaggi: orologi dei server sfasati, richiesta già ricevuta (replay), child precedente alla 1.4.11
+* Security: l'export non contiene più le chiavi in chiaro. Due modalità: chiavi cifrate con password (AES-256-GCM, chiave derivata con PBKDF2-SHA256 a 600.000 iterazioni, minimo 12 caratteri) oppure export senza chiavi
+* Import: richiede la password per gli export protetti; con password errata o file modificato non importa nulla; limite sulle iterazioni del file contro file costruiti per bloccare il server; gli export precedenti (chiavi in chiaro) restano importabili
+* Import senza chiavi: i siti risultano KO con la causa "nessuna chiave salvata" senza inviare alert, finché non si inserisce la chiave con Modifica
 
 = 1.1.9 =
 * Fix: nome del sito con apostrofi o virgolette salvato con backslash (es. "Studio d\'Arte"): aggiunto `wp_unslash()` nei form Aggiungi/Modifica sito

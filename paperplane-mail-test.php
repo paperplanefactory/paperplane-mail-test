@@ -2,7 +2,7 @@
 /**
  * Plugin Name: PaperPlane Mail Test
  * Description: Monitors mail function on client sites. Requires PaperPlane Mail Test Child installed on each site.
- * Version: 1.1.9
+ * Version: 1.1.10
  * Author: Paper Plane Factory
  * Text Domain: paperplane-mail-test
  * Domain Path: /languages
@@ -286,6 +286,36 @@ function pp_mm_apply_result( array &$site, array $result ): void {
 	$site['error_since'] = 0;
 }
 
+function pp_mm_missing_key_message(): string {
+	return __( 'No secret key saved for this site: enter it with Edit.', 'paperplane-mail-test' );
+}
+
+/**
+ * Testo firmato con HMAC-SHA256: deve coincidere con pp_mt_signature_payload() del child.
+ */
+function pp_mm_signature_payload( string $ts, string $nonce, string $token, string $test_email ): string {
+	return implode( "\n", array( 'pp-mail-test-v1', $ts, $nonce, $token, $test_email ) );
+}
+
+/**
+ * Body della richiesta firmata (child ≥ 1.4.11): la chiave segreta non viene inviata.
+ * Timestamp e nonce monouso impediscono di ripetere una richiesta intercettata (replay).
+ */
+function pp_mm_signed_body( string $secret, string $token, string $test_email ): array {
+	$ts    = (string) time();
+	$nonce = wp_generate_password( 32, false );
+	$body  = array(
+		'pp_ts'          => $ts,
+		'pp_nonce'       => $nonce,
+		'pp_check_token' => $token,
+		'pp_sig'         => hash_hmac( 'sha256', pp_mm_signature_payload( $ts, $nonce, $token, $test_email ), $secret ),
+	);
+	if ( $test_email !== '' ) {
+		$body['test_email'] = $test_email;
+	}
+	return $body;
+}
+
 /**
  * Chiama l'endpoint del sito e restituisce array ['success', 'message', 'detail', 'token'].
  * message: causa leggibile; detail: informazioni tecniche (header server, estratto della risposta).
@@ -304,25 +334,23 @@ function pp_mm_check_site( array $site, string $test_email = '' ): array {
 		return $result( false, pp_mm_url_error_message( $url_check['code'] ) );
 	}
 
-	// Chiave salvata ma non più decifrabile: le chiavi di sicurezza di WordPress (AUTH_KEY) di questo sito sono cambiate.
+	// Nessuna chiave (es. import senza chiavi): inutile chiamare il sito.
 	$stored = $site['secret'] ?? '';
+	if ( $stored === '' ) {
+		return $result( false, pp_mm_missing_key_message() );
+	}
+	// Chiave salvata ma non più decifrabile: le chiavi di sicurezza di WordPress (AUTH_KEY) di questo sito sono cambiate.
 	$secret = pp_mm_decrypt( $stored );
 	if ( $stored !== '' && $secret === '' ) {
 		return $result( false, __( 'The secret key saved here can no longer be decrypted (the WordPress security keys of this site have changed). Re-enter the key with Edit.', 'paperplane-mail-test' ) );
 	}
 
-	$body = array(
-		'pp_secret'      => $secret,
-		'pp_check_token' => $token,
-	);
-	if ( $test_email ) {
-		$body['test_email'] = $test_email;
-	}
 	// Nessun redirect: un 3xx porterebbe la richiesta verso URL non validati da pp_mm_check_url() (SSRF).
+	// Il body è firmato a ogni tentativo (nonce nuovo): il child rifiuterebbe un nonce già usato.
 	$args = array(
 		'timeout'     => 15,
 		'redirection' => 0,
-		'body'        => $body,
+		'body'        => pp_mm_signed_body( $secret, $token, $test_email ),
 	);
 
 	$response = pp_mm_remote_post_pinned( $url, $args, $url_check['ip'] );
@@ -330,7 +358,8 @@ function pp_mm_check_site( array $site, string $test_email = '' ): array {
 	// così un singolo problema di rete passeggero non genera un alert.
 	if ( is_wp_error( $response ) || in_array( wp_remote_retrieve_response_code( $response ), array( 502, 503, 504 ), true ) ) {
 		sleep( 5 );
-		$response = pp_mm_remote_post_pinned( $url, $args, $url_check['ip'] );
+		$args['body'] = pp_mm_signed_body( $secret, $token, $test_email );
+		$response     = pp_mm_remote_post_pinned( $url, $args, $url_check['ip'] );
 	}
 
 	if ( is_wp_error( $response ) ) {
@@ -359,13 +388,17 @@ function pp_mm_check_site( array $site, string $test_email = '' ): array {
 function pp_mm_describe_http_error( int $code, $response, array $json ): string {
 	$rest_code = (string) ( $json['code'] ?? '' );
 
-	if ( $rest_code === 'pp_mt_key_unreadable' ) {
+	if ( $rest_code === 'pp_mt_clock_skew' ) {
+		$text = __( 'The clocks of this server and the client site differ by more than 5 minutes: check the time (NTP) on both servers.', 'paperplane-mail-test' );
+	} elseif ( $rest_code === 'pp_mt_replay' ) {
+		$text = __( 'Request rejected as already received (replay protection). If it happens again, check the server clocks.', 'paperplane-mail-test' );
+	} elseif ( $rest_code === 'pp_mt_key_unreadable' ) {
 		$text = __( 'The secret key on the client site can no longer be decrypted (its WordPress security keys have changed). Generate a new key on the client site and update it here with Edit.', 'paperplane-mail-test' );
 	} elseif ( $code >= 300 && $code < 400 ) {
 		$location = (string) wp_remote_retrieve_header( $response, 'location' );
 		$text     = sprintf( __( 'The site redirects to %s: update the site URL with Edit.', 'paperplane-mail-test' ), $location !== '' ? $location : '?' );
 	} elseif ( $code === 401 && $rest_code === 'rest_forbidden' ) {
-		$text = __( 'Authentication refused: wrong secret key, or too many calls in a short time.', 'paperplane-mail-test' );
+		$text = __( 'Authentication refused: wrong secret key, too many calls in a short time, or child plugin older than 1.4.11 (update it).', 'paperplane-mail-test' );
 	} elseif ( $code === 401 || $code === 403 ) {
 		$text = __( 'Access denied: a firewall or security plugin is blocking the REST API.', 'paperplane-mail-test' );
 	} elseif ( $code === 404 && $rest_code === 'rest_no_route' ) {
@@ -603,6 +636,35 @@ function pp_mm_register_settings() {
 	) );
 }
 
+// ─── Export cifrato ──────────────────────────────────────────────────────────
+// Le chiavi segrete nell'export sono cifrate con una password scelta da chi esporta:
+// AES-256-GCM con chiave derivata dalla password (PBKDF2-SHA256, salt casuale).
+
+define( 'PP_MM_EXPORT_KDF_ITERATIONS', 600000 );
+define( 'PP_MM_EXPORT_MIN_PASSWORD', 12 );
+
+function pp_mm_export_key( string $password, string $salt, int $iterations ): string {
+	return hash_pbkdf2( 'sha256', $password, $salt, $iterations, 32, true );
+}
+
+function pp_mm_export_encrypt( string $plaintext, string $key ): string {
+	$iv  = random_bytes( 12 );
+	$tag = '';
+	$ct  = openssl_encrypt( $plaintext, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag );
+	return base64_encode( $iv . $tag . $ct );
+}
+
+/**
+ * Restituisce il testo in chiaro, o false se password errata o dati alterati (tag GCM non valido).
+ */
+function pp_mm_export_decrypt( string $blob, string $key ) {
+	$raw = base64_decode( $blob, true );
+	if ( $raw === false || strlen( $raw ) < 28 ) {
+		return false;
+	}
+	return openssl_decrypt( substr( $raw, 28 ), 'aes-256-gcm', $key, OPENSSL_RAW_DATA, substr( $raw, 0, 12 ), substr( $raw, 12, 16 ) );
+}
+
 // ─── Gestione azioni POST ─────────────────────────────────────────────────────
 
 /**
@@ -730,25 +792,56 @@ function pp_mm_handle_actions() {
 	}
 
 	// ── Export siti ────────────────────────────────────────────────────────────
+	// Due modalità: chiavi cifrate con password (predefinita) oppure senza chiavi.
 	if ( $action === 'export_sites' && check_admin_referer( 'pp_mm_export' ) ) {
-		$sites        = get_option( PP_MM_OPTION_SITES, array() );
-		$export_sites = array_map( function( $site ) {
-			return array(
+		$settings_url = admin_url( 'admin.php?page=pp-mail-monitor-settings' );
+		$with_keys    = ( $_POST['pp_mm_export_mode'] ?? 'password' ) !== 'nokeys';
+
+		if ( $with_keys ) {
+			// Password non sanitizzata: è usata solo per derivare la chiave, mai salvata o mostrata.
+			$password = is_string( $_POST['pp_mm_export_password'] ?? null ) ? wp_unslash( $_POST['pp_mm_export_password'] ) : '';
+			$confirm  = is_string( $_POST['pp_mm_export_password2'] ?? null ) ? wp_unslash( $_POST['pp_mm_export_password2'] ) : '';
+			if ( mb_strlen( $password ) < PP_MM_EXPORT_MIN_PASSWORD ) {
+				wp_safe_redirect( add_query_arg( 'pp_mm_export_error', 'short', $settings_url ) );
+				exit;
+			}
+			if ( ! hash_equals( $password, $confirm ) ) {
+				wp_safe_redirect( add_query_arg( 'pp_mm_export_error', 'mismatch', $settings_url ) );
+				exit;
+			}
+			$salt = random_bytes( 16 );
+			$key  = pp_mm_export_key( $password, $salt, PP_MM_EXPORT_KDF_ITERATIONS );
+		}
+
+		$export_sites = array_map( function( $site ) use ( $with_keys, &$key ) {
+			$row = array(
 				'label'     => $site['label'] ?? '',
 				'url'       => $site['url'] ?? '',
-				'secret'    => pp_mm_decrypt( $site['secret'] ?? '' ),
 				'frequency' => $site['frequency'] ?? 'daily',
 			);
-		}, $sites );
+			if ( $with_keys ) {
+				$row['secret_enc'] = pp_mm_export_encrypt( pp_mm_decrypt( $site['secret'] ?? '' ), $key );
+			}
+			return $row;
+		}, get_option( PP_MM_OPTION_SITES, array() ) );
 
 		$export = array(
-			'version'     => '1.0',
+			'version'     => '2.0',
 			'exported_at' => wp_date( 'c' ),
 			'plugin'      => 'paperplane-mail-test',
-			'sites'       => $export_sites,
+			'keys'        => $with_keys ? 'encrypted' : 'none',
 		);
+		if ( $with_keys ) {
+			$export['cipher'] = 'aes-256-gcm';
+			$export['kdf']    = array(
+				'alg'        => 'pbkdf2-sha256',
+				'iterations' => PP_MM_EXPORT_KDF_ITERATIONS,
+				'salt'       => base64_encode( $salt ),
+			);
+		}
+		$export['sites'] = $export_sites;
 
-		$filename = 'pp-mail-monitor-export-' . wp_date( 'Y-m-d' ) . '.json';
+		$filename = 'pp-mail-monitor-export-' . wp_date( 'Y-m-d' ) . ( $with_keys ? '' : '-senza-chiavi' ) . '.json';
 		header( 'Content-Type: application/json; charset=utf-8' );
 		header( 'Content-Disposition: attachment; filename="' . $filename . '"' );
 		header( 'Cache-Control: no-cache, no-store, must-revalidate' );
@@ -793,6 +886,30 @@ function pp_mm_handle_actions() {
 			: 'replace';
 		$imported = array();
 
+		// Chiavi nel file: 'encrypted' (password), 'none' (senza chiavi), 'plain' (export ≤ 1.1.9, in chiaro).
+		$keys = $data['keys'] ?? 'plain';
+		if ( ! in_array( $keys, array( 'encrypted', 'none', 'plain' ), true ) ) {
+			wp_safe_redirect( add_query_arg( 'pp_mm_import_error', 'format', $settings_url ) );
+			exit;
+		}
+		if ( $keys === 'encrypted' ) {
+			$kdf        = is_array( $data['kdf'] ?? null ) ? $data['kdf'] : array();
+			$salt       = base64_decode( (string) ( $kdf['salt'] ?? '' ), true );
+			$iterations = (int) ( $kdf['iterations'] ?? 0 );
+			// Limiti sulle iterazioni: un file costruito ad arte non deve bloccare il server.
+			if ( ( $kdf['alg'] ?? '' ) !== 'pbkdf2-sha256' || ( $data['cipher'] ?? '' ) !== 'aes-256-gcm'
+				|| $salt === false || strlen( $salt ) < 16 || $iterations < 100000 || $iterations > 5000000 ) {
+				wp_safe_redirect( add_query_arg( 'pp_mm_import_error', 'format', $settings_url ) );
+				exit;
+			}
+			$password = is_string( $_POST['pp_mm_import_password'] ?? null ) ? wp_unslash( $_POST['pp_mm_import_password'] ) : '';
+			if ( $password === '' ) {
+				wp_safe_redirect( add_query_arg( 'pp_mm_import_error', 'nopassword', $settings_url ) );
+				exit;
+			}
+			$import_key = pp_mm_export_key( $password, $salt, $iterations );
+		}
+
 		foreach ( $data['sites'] as $raw ) {
 			if ( ! is_array( $raw ) ) {
 				continue;
@@ -809,15 +926,32 @@ function pp_mm_handle_actions() {
 			if ( ! in_array( $freq, array( 'hourly', 'daily' ), true ) ) {
 				$freq = 'daily';
 			}
-			$imported[] = array(
+			if ( $keys === 'encrypted' ) {
+				$secret = pp_mm_export_decrypt( $raw['secret_enc'] ?? '', $import_key );
+				// Password errata o file alterato: si annulla tutto l'import, nessun sito viene salvato.
+				if ( $secret === false ) {
+					wp_safe_redirect( add_query_arg( 'pp_mm_import_error', 'password', $settings_url ) );
+					exit;
+				}
+			} else {
+				$secret = $keys === 'plain' ? ( $raw['secret'] ?? '' ) : '';
+			}
+			$site = array(
 				'label'        => sanitize_text_field( $raw['label'] ?? '' ),
 				'url'          => $url,
-				'secret'       => pp_mm_encrypt( sanitize_text_field( $raw['secret'] ?? '' ) ),
+				'secret'       => pp_mm_encrypt( sanitize_text_field( $secret ) ),
 				'frequency'    => $freq,
 				'last_check'   => 0,
 				'last_status'  => '',
 				'last_message' => '',
 			);
+			// Sito senza chiave: già in KO con la causa, così il cron non manda un alert per ogni sito importato.
+			if ( $site['secret'] === '' ) {
+				$site['last_status']  = 'error';
+				$site['last_message'] = pp_mm_missing_key_message();
+				$site['error_since']  = time();
+			}
+			$imported[] = $site;
 		}
 
 		if ( empty( $imported ) ) {
@@ -832,7 +966,7 @@ function pp_mm_handle_actions() {
 			update_option( PP_MM_OPTION_SITES, array_merge( $existing, $imported ) );
 		}
 
-		wp_safe_redirect( add_query_arg( 'pp_mm_imported', count( $imported ), admin_url( 'admin.php?page=pp-mail-monitor' ) ) );
+		wp_safe_redirect( add_query_arg( array( 'pp_mm_imported' => count( $imported ), 'pp_mm_imported_nokeys' => $keys === 'none' ? 1 : null ), admin_url( 'admin.php?page=pp-mail-monitor' ) ) );
 		exit;
 	}
 }
@@ -865,6 +999,9 @@ function pp_mm_render_sites_page() {
 		<?php endif; ?>
 		<?php if ( isset( $_GET['pp_mm_url_error'] ) ) : ?>
 			<div class="notice notice-error is-dismissible"><p><?php echo esc_html( pp_mm_url_error_message( sanitize_key( $_GET['pp_mm_url_error'] ) ) ); ?></p></div>
+		<?php endif; ?>
+		<?php if ( isset( $_GET['pp_mm_imported_nokeys'] ) ) : ?>
+			<div class="notice notice-warning is-dismissible"><p><?php esc_html_e( 'The sites were imported without secret keys: enter the key of each site with Edit (copy it from Tools → PaperPlane Mail Test on the client site, or generate a new one there).', 'paperplane-mail-test' ); ?></p></div>
 		<?php endif; ?>
 		<?php if ( isset( $_GET['pp_mm_imported'] ) ) : ?>
 			<div class="notice notice-success is-dismissible"><p>
@@ -1080,14 +1217,24 @@ function pp_mm_render_settings_page() {
 		'type'   => __( 'Invalid file type. Please upload a .json file.', 'paperplane-mail-test' ),
 		'format' => __( 'Invalid file format. The file does not appear to be a valid PaperPlane Mail Monitor export.', 'paperplane-mail-test' ),
 		'empty'  => __( 'No valid sites found in the file.', 'paperplane-mail-test' ),
+		'nopassword' => __( 'This export is password-protected: enter its password to import it.', 'paperplane-mail-test' ),
+		'password'   => __( 'Wrong password, or the file has been modified. No sites were imported.', 'paperplane-mail-test' ),
 	);
 	$import_error_key = sanitize_key( $_GET['pp_mm_import_error'] ?? '' );
+	$export_errors    = array(
+		'short'    => sprintf( __( 'The export password must be at least %d characters long.', 'paperplane-mail-test' ), PP_MM_EXPORT_MIN_PASSWORD ),
+		'mismatch' => __( 'The two passwords do not match.', 'paperplane-mail-test' ),
+	);
+	$export_error_key = sanitize_key( $_GET['pp_mm_export_error'] ?? '' );
 	?>
 	<div class="wrap">
 		<h1><?php esc_html_e( 'Mail Monitor — Settings', 'paperplane-mail-test' ); ?></h1>
 
 		<?php if ( $import_error_key && isset( $import_errors[ $import_error_key ] ) ) : ?>
 			<div class="notice notice-error is-dismissible"><p><?php echo esc_html( $import_errors[ $import_error_key ] ); ?></p></div>
+		<?php endif; ?>
+		<?php if ( $export_error_key && isset( $export_errors[ $export_error_key ] ) ) : ?>
+			<div class="notice notice-error is-dismissible"><p><?php echo esc_html( $export_errors[ $export_error_key ] ); ?></p></div>
 		<?php endif; ?>
 
 		<h2><?php esc_html_e( 'KO notification email', 'paperplane-mail-test' ); ?></h2>
@@ -1171,15 +1318,42 @@ function pp_mm_render_settings_page() {
 		<p><?php esc_html_e( 'Use export and import to move the list of monitored sites to another installation.', 'paperplane-mail-test' ); ?></p>
 
 		<h3><?php esc_html_e( 'Export', 'paperplane-mail-test' ); ?></h3>
-		<p><?php esc_html_e( 'Downloads a JSON file with all monitored sites and their secret keys. Keep this file safe.', 'paperplane-mail-test' ); ?></p>
+		<p><?php esc_html_e( 'Downloads a JSON file with all monitored sites. Secret keys are never exported in clear.', 'paperplane-mail-test' ); ?></p>
 		<form method="post">
 			<?php wp_nonce_field( 'pp_mm_export' ); ?>
 			<input type="hidden" name="pp_mm_action" value="export_sites">
+			<table class="form-table" role="presentation">
+				<tr>
+					<th><?php esc_html_e( 'Secret keys', 'paperplane-mail-test' ); ?></th>
+					<td>
+						<label style="display:block;margin-bottom:6px">
+							<input type="radio" name="pp_mm_export_mode" value="password" checked>
+							<?php esc_html_e( 'Protect with a password (recommended)', 'paperplane-mail-test' ); ?>
+						</label>
+						<label>
+							<input type="radio" name="pp_mm_export_mode" value="nokeys">
+							<?php esc_html_e( 'Do not export the keys', 'paperplane-mail-test' ); ?>
+						</label>
+						<p class="description"><?php esc_html_e( 'Without keys, after importing you will have to enter the key of each site with Edit.', 'paperplane-mail-test' ); ?></p>
+					</td>
+				</tr>
+				<tr>
+					<th><label for="pp_mm_export_password"><?php esc_html_e( 'Password', 'paperplane-mail-test' ); ?></label></th>
+					<td>
+						<input type="password" id="pp_mm_export_password" name="pp_mm_export_password" class="regular-text" autocomplete="new-password">
+						<p class="description"><?php printf( esc_html__( 'At least %d characters. It will be asked when importing: keep it separate from the file (for example in a password manager), it cannot be recovered.', 'paperplane-mail-test' ), PP_MM_EXPORT_MIN_PASSWORD ); ?></p>
+					</td>
+				</tr>
+				<tr>
+					<th><label for="pp_mm_export_password2"><?php esc_html_e( 'Confirm password', 'paperplane-mail-test' ); ?></label></th>
+					<td><input type="password" id="pp_mm_export_password2" name="pp_mm_export_password2" class="regular-text" autocomplete="new-password"></td>
+				</tr>
+			</table>
 			<?php submit_button( __( 'Download export file', 'paperplane-mail-test' ), 'secondary' ); ?>
 		</form>
 
 		<h3><?php esc_html_e( 'Import', 'paperplane-mail-test' ); ?></h3>
-		<p><?php esc_html_e( 'Upload an export file generated by this plugin. The secret keys in the file must already be configured on the respective client sites.', 'paperplane-mail-test' ); ?></p>
+		<p><?php esc_html_e( 'Upload an export file generated by this plugin. The secret keys in the file must still be the ones active on the respective client sites.', 'paperplane-mail-test' ); ?></p>
 		<form method="post" enctype="multipart/form-data">
 			<?php wp_nonce_field( 'pp_mm_import' ); ?>
 			<input type="hidden" name="pp_mm_action" value="import_sites">
@@ -1187,6 +1361,13 @@ function pp_mm_render_settings_page() {
 				<tr>
 					<th><label for="pp_mm_import_file"><?php esc_html_e( 'Export file (.json)', 'paperplane-mail-test' ); ?></label></th>
 					<td><input type="file" id="pp_mm_import_file" name="pp_mm_import_file" accept=".json"></td>
+				</tr>
+				<tr>
+					<th><label for="pp_mm_import_password"><?php esc_html_e( 'Export password', 'paperplane-mail-test' ); ?></label></th>
+					<td>
+						<input type="password" id="pp_mm_import_password" name="pp_mm_import_password" class="regular-text" autocomplete="off">
+						<p class="description"><?php esc_html_e( 'Only for password-protected exports.', 'paperplane-mail-test' ); ?></p>
+					</td>
 				</tr>
 				<tr>
 					<th><?php esc_html_e( 'Import mode', 'paperplane-mail-test' ); ?></th>
