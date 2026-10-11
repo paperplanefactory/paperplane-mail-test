@@ -2,7 +2,7 @@
 Contributors: paperplanefactory
 Requires at least: 5.9
 Tested up to: 6.7
-Stable tag: 1.1.8
+Stable tag: 1.1.9
 License: GPLv2 or later
 
 Monitors the mail function on client sites from a central installation. Install on the assistance site.
@@ -14,6 +14,9 @@ PaperPlane Mail Test monitors the mail function on your client sites from a cent
 Each client site must have the PaperPlane Mail Test Child plugin installed and configured.
 
 == Changelog ==
+
+= 1.1.9 =
+* Fix: nome del sito con apostrofi o virgolette salvato con backslash (es. "Studio d\'Arte"): aggiunto `wp_unslash()` nei form Aggiungi/Modifica sito
 
 = 1.1.8 =
 * Down management: lo stato di ogni sito viene salvato subito dopo il suo check (prima solo a fine run: se PHP si interrompeva per `max_execution_time` gli stati andavano persi e gli alert venivano ripetuti); limite di esecuzione rinnovato per ogni sito; lock per evitare run sovrapposti

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: PaperPlane Mail Test
  * Description: Monitors mail function on client sites. Requires PaperPlane Mail Test Child installed on each site.
- * Version: 1.1.8
+ * Version: 1.1.9
  * Author: Paper Plane Factory
  * Text Domain: paperplane-mail-test
  * Domain Path: /languages
@@ -633,9 +633,9 @@ function pp_mm_handle_actions() {
 		}
 		$sites   = get_option( PP_MM_OPTION_SITES, array() );
 		$sites[] = array(
-			'label'        => sanitize_text_field( $_POST['pp_mm_label'] ?? '' ),
+			'label'        => sanitize_text_field( wp_unslash( $_POST['pp_mm_label'] ?? '' ) ),
 			'url'          => esc_url_raw( $raw_url ),
-			'secret'       => pp_mm_encrypt( sanitize_text_field( $_POST['pp_mm_secret'] ?? '' ) ),
+			'secret'       => pp_mm_encrypt( sanitize_text_field( wp_unslash( $_POST['pp_mm_secret'] ?? '' ) ) ),
 			'frequency'    => in_array( $_POST['pp_mm_frequency'] ?? '', array( 'hourly', 'daily' ), true )
 				? $_POST['pp_mm_frequency']
 				: 'daily',
@@ -699,7 +699,7 @@ function pp_mm_handle_actions() {
 		// Chiave: mai mostrata nel form. Campo vuoto = chiave invariata.
 		$new_secret = sanitize_text_field( wp_unslash( $_POST['pp_mm_new_secret'] ?? '' ) );
 
-		$sites[ $idx ]['label']     = sanitize_text_field( $_POST['pp_mm_label'] ?? '' );
+		$sites[ $idx ]['label']     = sanitize_text_field( wp_unslash( $_POST['pp_mm_label'] ?? '' ) );
 		$sites[ $idx ]['frequency'] = in_array( $_POST['pp_mm_frequency'] ?? '', array( 'hourly', 'daily' ), true )
 			? $_POST['pp_mm_frequency']
 			: $sites[ $idx ]['frequency'];
