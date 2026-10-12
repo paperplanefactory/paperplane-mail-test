@@ -3,7 +3,7 @@ Contributors: paperplanefactory
 Requires at least: 5.9
 Tested up to: 7.1
 Requires PHP: 8.0
-Stable tag: 1.1.10
+Stable tag: 1.1.11
 License: GPLv2 or later
 
 Monitors the mail function on client sites from a central installation. Install on the assistance site.
@@ -15,6 +15,12 @@ PaperPlane Mail Test monitors the mail function on your client sites from a cent
 Each client site must have the PaperPlane Mail Test Child plugin installed and configured.
 
 == Changelog ==
+
+= 1.1.11 =
+* Lista siti: righe alternate bianco/grigio per sito (prima la classe "striped" contava anche la riga nascosta del form Modifica e tutti i siti risultavano dello stesso colore) e bordo inferiore su ogni sito
+* Accessibilità WCAG 2.2 AA (verificata con axe-core, 0 violazioni): contrasto dei colori, pulsanti Controlla ora/Modifica/Rimuovi con il nome del sito per gli screen reader, stato aperto/chiuso del form Modifica con gestione del focus, didascalia e intestazioni della tabella, gruppi di opzioni con legenda nelle impostazioni
+* Security: header `Update URI`: gli aggiornamenti arrivano solo da GitHub, un eventuale plugin omonimo su wordpress.org non può sostituire il main
+* Compatibilità: Tested up to 7.1, Requires PHP 8.0 (anche nell'header del plugin, così WordPress blocca l'attivazione su PHP 7)
 
 = 1.1.10 =
 * Security: richieste firmate. La chiave segreta non viene più inviata: ogni richiesta ha timestamp, nonce monouso e firma HMAC-SHA256 calcolata con la chiave; il child rifiuta firme errate, timestamp fuori dai 5 minuti e nonce già usati (protezione replay). Richiede il child 1.4.11 o successivo: aggiornare prima tutti i child
