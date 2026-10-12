@@ -1040,7 +1040,16 @@ function pp_mm_render_sites_page() {
 		}
 		?>
 		<?php if ( ! empty( $sites ) ) : ?>
-		<table class="widefat striped" style="margin-bottom:24px">
+		<style>
+			/* Righe alternate per sito (non per <tr>: ogni sito ha anche la riga nascosta del form Modifica). */
+			.pp-mm-sites tbody tr.pp-mm-row-even { background: #fff; }
+			.pp-mm-sites tbody tr.pp-mm-row-odd { background: #f6f7f7; }
+			.pp-mm-sites tbody tr.pp-mm-site > td,
+			.pp-mm-sites tbody tr.pp-mm-edit-row > td { border-bottom: 1px solid #dcdcde; }
+			/* Form Modifica aperto: il bordo va sotto il form, sito e form restano un unico blocco. */
+			.pp-mm-sites tbody tr.pp-mm-site.pp-mm-editing > td { border-bottom: 0; }
+		</style>
+		<table class="widefat pp-mm-sites" style="margin-bottom:24px">
 			<thead>
 				<tr>
 					<th><?php esc_html_e( 'Site', 'paperplane-mail-test' ); ?></th>
@@ -1052,7 +1061,10 @@ function pp_mm_render_sites_page() {
 				</tr>
 			</thead>
 			<tbody>
-			<?php foreach ( $sites as $i => $site ) :
+			<?php
+			$row_n = 0;
+			foreach ( $sites as $i => $site ) :
+				$row_class  = ( $row_n++ % 2 === 0 ) ? 'pp-mm-row-even' : 'pp-mm-row-odd';
 				$status     = $site['last_status'] ?? '';
 				$last_check = $site['last_check'] ? wp_date( 'Y/m/d H:i', $site['last_check'] ) : '—';
 				$color      = $status === 'ok' ? '#46b450' : ( $status === 'error' ? '#d63638' : '#999' );
@@ -1068,7 +1080,7 @@ function pp_mm_render_sites_page() {
 					$next_check = wp_date( 'Y/m/d H:i', $last_ts + $interval );
 				}
 			?>
-				<tr>
+				<tr class="pp-mm-site <?php echo esc_attr( $row_class ); ?>">
 					<td>
 						<strong><?php echo esc_html( $site['label'] ?: $site['url'] ); ?></strong><br>
 						<span style="color:#999;font-size:.9em"><?php echo esc_html( $site['url'] ); ?></span>
@@ -1108,7 +1120,7 @@ function pp_mm_render_sites_page() {
 						</form>
 					</td>
 				</tr>
-				<tr id="pp-mm-edit-<?php echo (int) $site['_orig_idx']; ?>" style="display:none;background:#f6f7f7">
+				<tr id="pp-mm-edit-<?php echo (int) $site['_orig_idx']; ?>" class="pp-mm-edit-row <?php echo esc_attr( $row_class ); ?>" style="display:none">
 					<td colspan="6" style="padding:12px 16px">
 						<form method="post" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
 							<?php wp_nonce_field( 'pp_mm_edit' ); ?>
@@ -1146,11 +1158,14 @@ function pp_mm_render_sites_page() {
 		document.querySelectorAll('.pp-mm-edit-btn').forEach(function(btn) {
 			btn.addEventListener('click', function() {
 				document.getElementById(btn.dataset.row).style.display = '';
+				btn.closest('tr').classList.add('pp-mm-editing');
 			});
 		});
 		document.querySelectorAll('.pp-mm-cancel-btn').forEach(function(btn) {
 			btn.addEventListener('click', function() {
-				document.getElementById(btn.dataset.row).style.display = 'none';
+				var row = document.getElementById(btn.dataset.row);
+				row.style.display = 'none';
+				row.previousElementSibling.classList.remove('pp-mm-editing');
 			});
 		});
 		</script>
