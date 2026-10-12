@@ -530,20 +530,20 @@ function pp_mm_send_weekly_report() {
 
 		if ( $status === 'ok' ) {
 			$ok_count++;
-			$status_html = '<span style="color:#46b450;font-weight:bold">&#10004; OK</span>';
+			$status_html = '<span style="color:#007017;font-weight:bold">&#10004; OK</span>';
 		} elseif ( $status === 'error' ) {
 			$ko_count++;
-			$status_html = '<span style="color:#d63638;font-weight:bold">&#10006; KO</span>';
+			$status_html = '<span style="color:#b32d2e;font-weight:bold">&#10006; KO</span>';
 			if ( $site['last_message'] ) {
 				$status_html .= '<br><span style="font-size:.9em;font-weight:normal">' . esc_html( $site['last_message'] ) . '</span>';
 			}
 		} else {
-			$status_html = '<span style="color:#999">—</span>';
+			$status_html = '<span style="color:#646970">—</span>';
 		}
 
 		$rows .= '<tr>'
 			. '<td style="padding:8px 12px;border-bottom:1px solid #eee"><strong>' . esc_html( $label ) . '</strong><br>'
-			. '<span style="color:#999;font-size:.9em">' . esc_html( $site['url'] ) . '</span></td>'
+			. '<span style="color:#646970;font-size:.9em">' . esc_html( $site['url'] ) . '</span></td>'
 			. '<td style="padding:8px 12px;border-bottom:1px solid #eee">' . esc_html( $freq ) . '</td>'
 			. '<td style="padding:8px 12px;border-bottom:1px solid #eee">' . esc_html( $last_check ) . '</td>'
 			. '<td style="padding:8px 12px;border-bottom:1px solid #eee">' . $status_html . '</td>'
@@ -574,7 +574,7 @@ function pp_mm_send_weekly_report() {
 		. '</tr></thead>'
 		. '<tbody>' . $rows . '</tbody>'
 		. '</table>'
-		. '<p style="color:#999;font-size:.85em;margin-top:16px">' . esc_html( wp_date( 'Y/m/d H:i' ) ) . '</p>'
+		. '<p style="color:#646970;font-size:.85em;margin-top:16px">' . esc_html( wp_date( 'Y/m/d H:i' ) ) . '</p>'
 		. '</div>';
 
 	wp_mail( $recipients, $subject, $body, array( 'Content-Type: text/html; charset=UTF-8' ) );
@@ -1024,7 +1024,7 @@ function pp_mm_render_sites_page() {
 			</div>
 		<?php endif; ?>
 
-		<h2><?php esc_html_e( 'Sites', 'paperplane-mail-test' ); ?> <span style="font-weight:normal;color:#999">(<?php echo count( $sites ); ?>)</span></h2>
+		<h2><?php esc_html_e( 'Sites', 'paperplane-mail-test' ); ?> <span style="font-weight:normal;color:#646970">(<?php echo count( $sites ); ?>)</span></h2>
 
 		<?php
 		// Conserva l'indice originale prima di ordinare, così i form passano
@@ -1050,14 +1050,15 @@ function pp_mm_render_sites_page() {
 			.pp-mm-sites tbody tr.pp-mm-site.pp-mm-editing > td { border-bottom: 0; }
 		</style>
 		<table class="widefat pp-mm-sites" style="margin-bottom:24px">
+			<caption class="screen-reader-text"><?php esc_html_e( 'Monitored Sites', 'paperplane-mail-test' ); ?></caption>
 			<thead>
 				<tr>
-					<th><?php esc_html_e( 'Site', 'paperplane-mail-test' ); ?></th>
-					<th><?php esc_html_e( 'Frequency', 'paperplane-mail-test' ); ?></th>
-					<th><?php esc_html_e( 'Last check', 'paperplane-mail-test' ); ?></th>
-					<th><?php esc_html_e( 'Next check', 'paperplane-mail-test' ); ?></th>
-					<th><?php esc_html_e( 'Status', 'paperplane-mail-test' ); ?></th>
-					<th><?php esc_html_e( 'Actions', 'paperplane-mail-test' ); ?></th>
+					<th scope="col"><?php esc_html_e( 'Site', 'paperplane-mail-test' ); ?></th>
+					<th scope="col"><?php esc_html_e( 'Frequency', 'paperplane-mail-test' ); ?></th>
+					<th scope="col"><?php esc_html_e( 'Last check', 'paperplane-mail-test' ); ?></th>
+					<th scope="col"><?php esc_html_e( 'Next check', 'paperplane-mail-test' ); ?></th>
+					<th scope="col"><?php esc_html_e( 'Status', 'paperplane-mail-test' ); ?></th>
+					<th scope="col"><?php esc_html_e( 'Actions', 'paperplane-mail-test' ); ?></th>
 				</tr>
 			</thead>
 			<tbody>
@@ -1065,9 +1066,11 @@ function pp_mm_render_sites_page() {
 			$row_n = 0;
 			foreach ( $sites as $i => $site ) :
 				$row_class  = ( $row_n++ % 2 === 0 ) ? 'pp-mm-row-even' : 'pp-mm-row-odd';
+				$site_name  = $site['label'] ?: $site['url'];
+				$edit_id    = 'pp-mm-edit-' . (int) $site['_orig_idx'];
 				$status     = $site['last_status'] ?? '';
 				$last_check = $site['last_check'] ? wp_date( 'Y/m/d H:i', $site['last_check'] ) : '—';
-				$color      = $status === 'ok' ? '#46b450' : ( $status === 'error' ? '#d63638' : '#999' );
+				$color      = $status === 'ok' ? '#007017' : ( $status === 'error' ? '#b32d2e' : '#646970' );
 				$label_st   = $status === 'ok' ? '✔ OK' : ( $status === 'error' ? '✖ KO' : '—' );
 
 				$last_ts   = (int) ( $site['last_check'] ?? 0 );
@@ -1083,7 +1086,7 @@ function pp_mm_render_sites_page() {
 				<tr class="pp-mm-site <?php echo esc_attr( $row_class ); ?>">
 					<td>
 						<strong><?php echo esc_html( $site['label'] ?: $site['url'] ); ?></strong><br>
-						<span style="color:#999;font-size:.9em"><?php echo esc_html( $site['url'] ); ?></span>
+						<span style="color:#646970;font-size:.9em"><?php echo esc_html( $site['url'] ); ?></span>
 					</td>
 					<td><?php echo $site['frequency'] === 'hourly' ? esc_html__( 'Every hour', 'paperplane-mail-test' ) : esc_html__( 'Every day', 'paperplane-mail-test' ); ?></td>
 					<td><?php echo esc_html( $last_check ); ?></td>
@@ -1095,10 +1098,10 @@ function pp_mm_render_sites_page() {
 								<br><span style="font-weight:normal;font-size:.85em"><?php echo esc_html( $site['last_message'] ); ?></span>
 							<?php endif; ?>
 							<?php if ( ! empty( $site['last_detail'] ) ) : ?>
-								<br><span style="font-weight:normal;font-size:.8em;color:#787c82"><?php echo esc_html( $site['last_detail'] ); ?></span>
+								<br><span style="font-weight:normal;font-size:.8em;color:#646970"><?php echo esc_html( $site['last_detail'] ); ?></span>
 							<?php endif; ?>
 							<?php if ( ! empty( $site['error_since'] ) ) : ?>
-								<br><span style="font-weight:normal;font-size:.8em;color:#787c82"><?php printf( esc_html__( 'KO since %1$s (%2$s)', 'paperplane-mail-test' ), esc_html( wp_date( 'Y/m/d H:i', (int) $site['error_since'] ) ), esc_html( human_time_diff( (int) $site['error_since'], time() ) ) ); ?></span>
+								<br><span style="font-weight:normal;font-size:.8em;color:#646970"><?php printf( esc_html__( 'KO since %1$s (%2$s)', 'paperplane-mail-test' ), esc_html( wp_date( 'Y/m/d H:i', (int) $site['error_since'] ) ), esc_html( human_time_diff( (int) $site['error_since'], time() ) ) ); ?></span>
 							<?php endif; ?>
 						<?php endif; ?>
 					</td>
@@ -1107,20 +1110,20 @@ function pp_mm_render_sites_page() {
 							<?php wp_nonce_field( 'pp_mm_check' ); ?>
 							<input type="hidden" name="pp_mm_action" value="check_now">
 							<input type="hidden" name="pp_mm_idx" value="<?php echo (int) $site['_orig_idx']; ?>">
-							<button type="submit" class="button button-secondary"><?php esc_html_e( 'Check now', 'paperplane-mail-test' ); ?></button>
+							<button type="submit" class="button button-secondary" aria-label="<?php echo esc_attr( __( 'Check now', 'paperplane-mail-test' ) . ': ' . $site_name ); ?>"><?php esc_html_e( 'Check now', 'paperplane-mail-test' ); ?></button>
 						</form>
 						&nbsp;
-						<button type="button" class="button button-secondary pp-mm-edit-btn" data-row="pp-mm-edit-<?php echo (int) $site['_orig_idx']; ?>"><?php esc_html_e( 'Edit', 'paperplane-mail-test' ); ?></button>
+						<button type="button" class="button button-secondary pp-mm-edit-btn" data-row="<?php echo esc_attr( $edit_id ); ?>" aria-expanded="false" aria-controls="<?php echo esc_attr( $edit_id ); ?>" aria-label="<?php echo esc_attr( __( 'Edit', 'paperplane-mail-test' ) . ': ' . $site_name ); ?>"><?php esc_html_e( 'Edit', 'paperplane-mail-test' ); ?></button>
 						&nbsp;
 						<form method="post" style="display:inline" onsubmit="return confirm('<?php echo esc_js( __( 'Remove this site?', 'paperplane-mail-test' ) ); ?>')">
 							<?php wp_nonce_field( 'pp_mm_delete' ); ?>
 							<input type="hidden" name="pp_mm_action" value="delete_site">
 							<input type="hidden" name="pp_mm_idx" value="<?php echo (int) $site['_orig_idx']; ?>">
-							<button type="submit" class="button button-link-delete"><?php esc_html_e( 'Remove', 'paperplane-mail-test' ); ?></button>
+							<button type="submit" class="button button-link-delete" aria-label="<?php echo esc_attr( __( 'Remove', 'paperplane-mail-test' ) . ': ' . $site_name ); ?>"><?php esc_html_e( 'Remove', 'paperplane-mail-test' ); ?></button>
 						</form>
 					</td>
 				</tr>
-				<tr id="pp-mm-edit-<?php echo (int) $site['_orig_idx']; ?>" class="pp-mm-edit-row <?php echo esc_attr( $row_class ); ?>" style="display:none">
+				<tr id="<?php echo esc_attr( $edit_id ); ?>" class="pp-mm-edit-row <?php echo esc_attr( $row_class ); ?>" style="display:none">
 					<td colspan="6" style="padding:12px 16px">
 						<form method="post" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
 							<?php wp_nonce_field( 'pp_mm_edit' ); ?>
@@ -1147,7 +1150,7 @@ function pp_mm_render_sites_page() {
 							</label>
 							<button type="submit" class="button button-primary"><?php esc_html_e( 'Save changes', 'paperplane-mail-test' ); ?></button>
 							<button type="submit" name="pp_mm_verify" value="1" class="button button-secondary"><?php esc_html_e( 'Save and verify', 'paperplane-mail-test' ); ?></button>
-							<button type="button" class="button button-secondary pp-mm-cancel-btn" data-row="pp-mm-edit-<?php echo (int) $site['_orig_idx']; ?>"><?php esc_html_e( 'Cancel', 'paperplane-mail-test' ); ?></button>
+							<button type="button" class="button button-secondary pp-mm-cancel-btn" data-row="<?php echo esc_attr( $edit_id ); ?>"><?php esc_html_e( 'Cancel', 'paperplane-mail-test' ); ?></button>
 						</form>
 					</td>
 				</tr>
@@ -1157,15 +1160,26 @@ function pp_mm_render_sites_page() {
 		<script>
 		document.querySelectorAll('.pp-mm-edit-btn').forEach(function(btn) {
 			btn.addEventListener('click', function() {
-				document.getElementById(btn.dataset.row).style.display = '';
-				btn.closest('tr').classList.add('pp-mm-editing');
+				var row = document.getElementById(btn.dataset.row);
+				var open = row.style.display === 'none';
+				row.style.display = open ? '' : 'none';
+				btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+				btn.closest('tr').classList.toggle('pp-mm-editing', open);
+				// Focus sul primo campo del form appena aperto (utenti tastiera e screen reader).
+				if ( open ) {
+					row.querySelector('input:not([type=hidden])').focus();
+				}
 			});
 		});
 		document.querySelectorAll('.pp-mm-cancel-btn').forEach(function(btn) {
 			btn.addEventListener('click', function() {
-				var row = document.getElementById(btn.dataset.row);
+				var row     = document.getElementById(btn.dataset.row);
+				var editBtn = row.previousElementSibling.querySelector('.pp-mm-edit-btn');
 				row.style.display = 'none';
 				row.previousElementSibling.classList.remove('pp-mm-editing');
+				// Il focus torna al pulsante Modifica che ha aperto il form.
+				editBtn.setAttribute('aria-expanded', 'false');
+				editBtn.focus();
 			});
 		});
 		</script>
@@ -1343,6 +1357,8 @@ function pp_mm_render_settings_page() {
 				<tr>
 					<th><?php esc_html_e( 'Secret keys', 'paperplane-mail-test' ); ?></th>
 					<td>
+						<fieldset>
+						<legend class="screen-reader-text"><?php esc_html_e( 'Secret keys', 'paperplane-mail-test' ); ?></legend>
 						<label style="display:block;margin-bottom:6px">
 							<input type="radio" name="pp_mm_export_mode" value="password" checked>
 							<?php esc_html_e( 'Protect with a password (recommended)', 'paperplane-mail-test' ); ?>
@@ -1351,6 +1367,7 @@ function pp_mm_render_settings_page() {
 							<input type="radio" name="pp_mm_export_mode" value="nokeys">
 							<?php esc_html_e( 'Do not export the keys', 'paperplane-mail-test' ); ?>
 						</label>
+						</fieldset>
 						<p class="description"><?php esc_html_e( 'Without keys, after importing you will have to enter the key of each site with Edit.', 'paperplane-mail-test' ); ?></p>
 					</td>
 				</tr>
@@ -1389,6 +1406,8 @@ function pp_mm_render_settings_page() {
 				<tr>
 					<th><?php esc_html_e( 'Import mode', 'paperplane-mail-test' ); ?></th>
 					<td>
+						<fieldset>
+						<legend class="screen-reader-text"><?php esc_html_e( 'Import mode', 'paperplane-mail-test' ); ?></legend>
 						<label style="display:block;margin-bottom:6px">
 							<input type="radio" name="pp_mm_import_mode" value="replace" checked>
 							<?php esc_html_e( 'Replace all existing sites', 'paperplane-mail-test' ); ?>
@@ -1397,7 +1416,8 @@ function pp_mm_render_settings_page() {
 							<input type="radio" name="pp_mm_import_mode" value="merge">
 							<?php esc_html_e( 'Add to existing sites', 'paperplane-mail-test' ); ?>
 						</label>
-						<p class="description" style="color:#d63638"><?php esc_html_e( '"Replace" will permanently delete all currently monitored sites.', 'paperplane-mail-test' ); ?></p>
+						</fieldset>
+						<p class="description" style="color:#b32d2e"><?php esc_html_e( '"Replace" will permanently delete all currently monitored sites.', 'paperplane-mail-test' ); ?></p>
 					</td>
 				</tr>
 			</table>
