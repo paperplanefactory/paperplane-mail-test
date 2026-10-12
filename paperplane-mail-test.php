@@ -6,6 +6,8 @@
  * Requires at least: 5.9
  * Requires PHP: 8.0
  * Author: Paper Plane Factory
+ * License: GPLv2 or later
+ * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: paperplane-mail-test
  * Domain Path: /languages
  * Update URI: https://github.com/paperplanefactory/paperplane-mail-test/

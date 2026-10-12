@@ -5,6 +5,7 @@ Tested up to: 7.1
 Requires PHP: 8.0
 Stable tag: 1.1.11
 License: GPLv2 or later
+License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
 Monitors the mail function on client sites from a central installation. Install on the assistance site.
 
