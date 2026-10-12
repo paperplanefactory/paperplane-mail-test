@@ -8,6 +8,7 @@
  * Author: Paper Plane Factory
  * Text Domain: paperplane-mail-test
  * Domain Path: /languages
+ * Update URI: https://github.com/paperplanefactory/paperplane-mail-test/
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
