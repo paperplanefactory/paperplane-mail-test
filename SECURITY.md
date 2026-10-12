@@ -8,7 +8,7 @@ Only the latest release of **PaperPlane Mail Test** receives security fixes. Ple
 
 Please **do not open a public issue** for security problems.
 
-Report it privately via GitHub: open the [**Security** tab](https://github.com/paperplanefactory/paperplane-mail-test/security) of this repository and click **Report a vulnerability**.
+Report it privately via GitHub: [**Report a vulnerability**](https://github.com/paperplanefactory/paperplane-mail-test/security/advisories/new) (you need to be signed in to GitHub). The report is visible only to the maintainers.
 
 Please include:
 
