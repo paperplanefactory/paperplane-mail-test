@@ -237,10 +237,7 @@ function pp_mm_run_checks() {
 
 	try {
 		foreach ( $sites as $i => &$site ) {
-			$freq       = $site['frequency'] ?? 'daily';
-			$last_check = (int) ( $site['last_check'] ?? 0 );
-			$interval   = $freq === 'hourly' ? HOUR_IN_SECONDS : 23 * HOUR_IN_SECONDS;
-			if ( ( $now - $last_check ) < $interval ) {
+			if ( ! pp_mm_is_due( $site, $now ) ) {
 				continue;
 			}
 
@@ -262,6 +259,20 @@ function pp_mm_run_checks() {
 	} finally {
 		delete_transient( 'pp_mm_checks_running' );
 	}
+}
+
+/**
+ * Tempo minimo dall'ultimo check perché un sito sia di nuovo da controllare.
+ * Il cron parte ogni ora: la soglia "oraria" è 50 minuti, non 60, perché last_check è registrato
+ * a fine check e WP-Cron può partire con qualche secondo o minuto di ritardo. Con la soglia esatta
+ * di 60 minuti il sito veniva saltato un giro su due (controllo di fatto ogni 2 ore).
+ */
+function pp_mm_check_threshold( array $site ): int {
+	return ( $site['frequency'] ?? 'daily' ) === 'hourly' ? 50 * MINUTE_IN_SECONDS : 23 * HOUR_IN_SECONDS;
+}
+
+function pp_mm_is_due( array $site, int $now ): bool {
+	return ( $now - (int) ( $site['last_check'] ?? 0 ) ) >= pp_mm_check_threshold( $site );
 }
 
 /**
@@ -1077,10 +1088,11 @@ function pp_mm_render_sites_page() {
 				$label_st   = $status === 'ok' ? '✔ OK' : ( $status === 'error' ? '✖ KO' : '—' );
 
 				$last_ts   = (int) ( $site['last_check'] ?? 0 );
-				$interval  = $site['frequency'] === 'hourly' ? HOUR_IN_SECONDS : 23 * HOUR_IN_SECONDS;
+				// Orario indicativo del prossimo check: il cron orario dopo la soglia di pp_mm_is_due().
+				$interval  = $site['frequency'] === 'hourly' ? HOUR_IN_SECONDS : 24 * HOUR_IN_SECONDS;
 				if ( ! $last_ts ) {
 					$next_check = esc_html__( 'Pending', 'paperplane-mail-test' );
-				} elseif ( $last_ts + $interval <= time() ) {
+				} elseif ( pp_mm_is_due( $site, time() ) ) {
 					$next_check = esc_html__( 'Soon', 'paperplane-mail-test' );
 				} else {
 					$next_check = wp_date( 'Y/m/d H:i', $last_ts + $interval );
