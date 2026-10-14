@@ -3,7 +3,7 @@ Contributors: paperplanefactory
 Requires at least: 5.9
 Tested up to: 7.1
 Requires PHP: 8.0
-Stable tag: 1.1.11
+Stable tag: 1.1.12
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -16,6 +16,11 @@ PaperPlane Mail Test monitors the mail function on your client sites from a cent
 Each client site must have the PaperPlane Mail Test Child plugin installed and configured.
 
 == Changelog ==
+
+= 1.1.12 =
+* Fix: i siti impostati "ogni ora" venivano controllati di fatto ogni 2 ore. Il sito risultava da controllare solo dopo 60 minuti esatti dall'ultimo check, registrato a fine check: al giro successivo del cron mancavano pochi secondi e il sito veniva saltato. Ora la soglia oraria è 50 minuti (giornaliera invariata, 23 ore)
+* Colonna "Prossimo check": per i siti giornalieri indica +24 ore (prima +23, un'ora prima del check reale)
+* Header `License` / `License URI` (GPLv2 or later)
 
 = 1.1.11 =
 * Lista siti: righe alternate bianco/grigio per sito (prima la classe "striped" contava anche la riga nascosta del form Modifica e tutti i siti risultavano dello stesso colore) e bordo inferiore su ogni sito

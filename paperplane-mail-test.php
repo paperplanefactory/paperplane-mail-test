@@ -2,7 +2,7 @@
 /**
  * Plugin Name: PaperPlane Mail Test
  * Description: Monitors mail function on client sites. Requires PaperPlane Mail Test Child installed on each site.
- * Version: 1.1.11
+ * Version: 1.1.12
  * Requires at least: 5.9
  * Requires PHP: 8.0
  * Author: Paper Plane Factory
