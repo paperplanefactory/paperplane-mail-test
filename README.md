@@ -41,7 +41,7 @@ Each client site must have the **PaperPlane Mail Test Child** plugin installed a
 - PHP OpenSSL extension (required for secret key encryption)
 - `AUTH_KEY` defined in `wp-config.php` (present on all standard WordPress installations)
 - **PaperPlane Mail Test Child** installed on each site to monitor
-- WP-Cron enabled, or a system cron calling `wp-cron.php`
+- A **system cron** calling `wp-cron.php` every 5 minutes (recommended, see [Scheduling the checks](#scheduling-the-checks)); WP-Cron alone works only if the assistance site has regular traffic
 
 ---
 
@@ -92,7 +92,7 @@ Go to **Mail Monitor → Monitored Sites** and fill in the **Add site** form for
 - **Secret key** — copy it from **Tools → PaperPlane Mail Test** on the client site
 - **Check frequency** — hourly or daily
 
-Click **Add site** to save it: the first automatic check runs at the next hourly cron run. Click **Add and verify** to save it and run a check immediately — the test email goes to the alert recipient, so you can confirm that URL and key are correct right away.
+Click **Add site** to save it: the first automatic check runs within 5 minutes. Click **Add and verify** to save it and run a check immediately — the test email goes to the alert recipient, so you can confirm that URL and key are correct right away.
 
 ### 5. Edit a monitored site
 
@@ -104,13 +104,15 @@ When the URL or the key changes, the site's status is reset. **Save and verify**
 
 ## How it works
 
-1. WP-Cron triggers a check at the configured frequency for each site
+1. Every 5 minutes the cron picks the sites that are due (hourly: last check at least 55 minutes ago; daily: at least 23 hours 55 minutes ago), most overdue first. Each run lasts at most about a minute; sites left over are checked in the next run, so with many sites the load is spread out
 2. The plugin sends a signed `POST` request to `/wp-json/pp-mail-test/v1/check` on the client site
 3. The child plugin runs `wp_mail()` and returns `true` or `false`
 4. If the result is KO **and the previous check was OK** (state change only), an alert email is sent to the configured recipients
 5. When a site that was KO works again, a recovery email is sent
 
-The state of each site is saved right after its check, and only one check run can be active at a time.
+Only one check run can be active at a time.
+
+**Storage (since 1.2.0).** Sites are stored in a dedicated database table (`{prefix}pp_mm_sites`), one row per site with a stable ID, and every check is recorded in a history table (`{prefix}pp_mm_checks`, kept for 90 days). Each write updates only the row and the columns it concerns: a check never overwrites changes made in the admin while it runs, and actions always apply to the right site even from a page left open. If a site is edited or removed while it is being checked, that result is discarded. On update from 1.1.x the sites are migrated automatically from the old `pp_mm_sites` option (in a single transaction; the old list is kept as a backup option).
 
 Authentication uses a secret key configured on each client site. The key is generated automatically by the child plugin and stored encrypted (AES-256-CBC) in the site's `wp_options` table.
 
@@ -118,7 +120,37 @@ Authentication uses a secret key configured on each client site. The key is gene
 
 ---
 
+## Scheduling the checks
+
+The checks run from a WordPress cron event every 5 minutes. WP-Cron only runs when someone visits the site, so on the assistance site configure a **system cron** instead:
+
+1. In `wp-config.php` add:
+   ```php
+   define( 'DISABLE_WP_CRON', true );
+   ```
+2. In the hosting control panel (cPanel, Plesk…) or with `crontab -e`, add a job every 5 minutes:
+   ```
+   */5 * * * * wget -q -O - "https://your-assistance-site.com/wp-cron.php?doing_wp_cron" >/dev/null 2>&1
+   ```
+   or, with WP-CLI:
+   ```
+   */5 * * * * cd /path/to/wordpress && wp cron event run --due-now >/dev/null 2>&1
+   ```
+
+If the checks have not run for more than 15 minutes, **Monitored Sites** shows a warning.
+
+---
+
 ## Features
+
+### Site list
+
+With many sites the list offers **search** by name or URL, **filters** by status (All, KO, OK, Never checked, with counts), **sorting** by name, last check or status, and **pages** of 50 sites.
+
+### History
+
+**History** on each site shows the result of the last checks (date, automatic or manual, cause of KO) and, for the last 30 days, the number of checks, KO and the success rate. The history is kept for 90 days.
+
 
 ### KO alert and recovery emails
 

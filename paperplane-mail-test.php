@@ -2,7 +2,7 @@
 /**
  * Plugin Name: PaperPlane Mail Test
  * Description: Monitors mail function on client sites. Requires PaperPlane Mail Test Child installed on each site.
- * Version: 1.1.12
+ * Version: 1.2.0
  * Requires at least: 5.9
  * Requires PHP: 8.0
  * Author: Paper Plane Factory
@@ -86,24 +86,343 @@ function pp_mm_decrypt( string $ciphertext ): string {
 	return $dec !== false ? $dec : '';
 }
 
-// Migrazione one-time: cifra i segreti già salvati in chiaro.
-add_action( 'admin_init', function () {
-	if ( get_option( 'pp_mm_secrets_encrypted', 0 ) ) {
+// ─── Archivio siti (tabelle dedicate) ────────────────────────────────────────
+// Dalla 1.2.0 i siti sono in una tabella, una riga per sito con ID stabile. Le azioni usano l'ID
+// (non la posizione in un elenco) e ogni scrittura aggiorna solo la riga e le colonne interessate:
+// cron, check manuali e modifiche dall'admin non si sovrascrivono più a vicenda.
+// Lo storico dei check è in una seconda tabella, conservato per PP_MM_HISTORY_DAYS giorni.
+// Tutte le query usano $wpdb->prepare() / insert() / update() / delete(): nessun valore
+// arriva nell'SQL senza escaping, e nomi di tabelle e colonne non dipendono mai dall'input.
+
+define( 'PP_MM_DB_VERSION', '1' );
+define( 'PP_MM_OPTION_DB_VERSION', 'pp_mm_db_version' );
+define( 'PP_MM_HISTORY_DAYS', 90 );
+
+function pp_mm_sites_table(): string {
+	global $wpdb;
+	return $wpdb->prefix . 'pp_mm_sites';
+}
+
+function pp_mm_checks_table(): string {
+	global $wpdb;
+	return $wpdb->prefix . 'pp_mm_checks';
+}
+
+function pp_mm_install_tables(): void {
+	global $wpdb;
+	require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+	$charset = $wpdb->get_charset_collate();
+	$sites   = pp_mm_sites_table();
+	$checks  = pp_mm_checks_table();
+	dbDelta( "CREATE TABLE $sites (
+		id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+		label varchar(191) NOT NULL DEFAULT '',
+		url varchar(255) NOT NULL DEFAULT '',
+		secret text NOT NULL,
+		frequency varchar(10) NOT NULL DEFAULT 'daily',
+		last_check bigint(20) unsigned NOT NULL DEFAULT 0,
+		last_status varchar(10) NOT NULL DEFAULT '',
+		last_message text NOT NULL,
+		last_detail text NOT NULL,
+		last_check_token varchar(64) NOT NULL DEFAULT '',
+		error_since bigint(20) unsigned NOT NULL DEFAULT 0,
+		created_at bigint(20) unsigned NOT NULL DEFAULT 0,
+		PRIMARY KEY  (id),
+		KEY last_check (last_check),
+		KEY last_status (last_status)
+	) $charset;" );
+	dbDelta( "CREATE TABLE $checks (
+		id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+		site_id bigint(20) unsigned NOT NULL,
+		checked_at bigint(20) unsigned NOT NULL,
+		status varchar(10) NOT NULL DEFAULT '',
+		source varchar(10) NOT NULL DEFAULT '',
+		message text NOT NULL,
+		detail text NOT NULL,
+		PRIMARY KEY  (id),
+		KEY site_time (site_id,checked_at),
+		KEY checked_at (checked_at)
+	) $charset;" );
+}
+
+function pp_mm_tables_exist(): bool {
+	global $wpdb;
+	foreach ( array( pp_mm_sites_table(), pp_mm_checks_table() ) as $table ) {
+		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $wpdb->esc_like( $table ) ) ) !== $table ) {
+			return false;
+		}
+	}
+	return true;
+}
+
+/**
+ * Crea/aggiorna le tabelle e migra i dati, una sola volta per versione dello schema.
+ * Gira a ogni caricamento (controllo di un'opzione già in memoria): gli aggiornamenti da GitHub
+ * non eseguono l'hook di attivazione.
+ */
+function pp_mm_maybe_upgrade_db(): void {
+	if ( get_option( PP_MM_OPTION_DB_VERSION ) === PP_MM_DB_VERSION ) {
 		return;
 	}
-	$sites = get_option( PP_MM_OPTION_SITES, array() );
-	if ( ! empty( $sites ) ) {
-		foreach ( $sites as &$site ) {
-			$secret = $site['secret'] ?? '';
-			if ( $secret && ! str_starts_with( $secret, 'enc1:' ) ) {
-				$site['secret'] = pp_mm_encrypt( $secret );
+	// Lock atomico (add_option fallisce se l'opzione esiste): due richieste contemporanee
+	// non eseguono la migrazione due volte. Un lock più vecchio di 5 minuti è considerato abbandonato.
+	if ( ! add_option( 'pp_mm_db_upgrading', time(), '', false ) ) {
+		if ( time() - (int) get_option( 'pp_mm_db_upgrading' ) < 5 * MINUTE_IN_SECONDS ) {
+			return;
+		}
+		update_option( 'pp_mm_db_upgrading', time(), false );
+	}
+	try {
+		pp_mm_install_tables();
+		if ( ! pp_mm_tables_exist() ) {
+			return; // Riprova alla richiesta successiva; i dati restano nell'opzione originale.
+		}
+		if ( pp_mm_migrate_sites_option() ) {
+			update_option( PP_MM_OPTION_DB_VERSION, PP_MM_DB_VERSION );
+		}
+	} finally {
+		delete_option( 'pp_mm_db_upgrading' );
+	}
+}
+add_action( 'plugins_loaded', 'pp_mm_maybe_upgrade_db' );
+
+/**
+ * Copia i siti dall'opzione pp_mm_sites (≤ 1.1.x) alla tabella, in un'unica transazione.
+ * L'opzione originale viene conservata come copia di sicurezza (non caricata in memoria).
+ * Restituisce false se la migrazione non è riuscita: in quel caso viene ripetuta.
+ */
+function pp_mm_migrate_sites_option(): bool {
+	global $wpdb;
+	$old = get_option( PP_MM_OPTION_SITES, null );
+	if ( ! is_array( $old ) || empty( $old ) ) {
+		delete_option( PP_MM_OPTION_SITES );
+		return true;
+	}
+	$existing = (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . pp_mm_sites_table() );
+	if ( $existing === 0 ) {
+		$wpdb->query( 'START TRANSACTION' );
+		foreach ( $old as $site ) {
+			if ( ! is_array( $site ) ) {
+				continue;
+			}
+			// Chiavi in chiaro di installazioni molto vecchie: cifrate durante la copia.
+			$secret = (string) ( $site['secret'] ?? '' );
+			if ( $secret !== '' && ! str_starts_with( $secret, 'enc1:' ) ) {
+				$secret = pp_mm_encrypt( $secret );
+			}
+			$site['secret'] = $secret;
+			if ( ! pp_mm_insert_site( $site ) ) {
+				$wpdb->query( 'ROLLBACK' );
+				return false;
 			}
 		}
-		unset( $site );
-		update_option( PP_MM_OPTION_SITES, $sites );
+		$wpdb->query( 'COMMIT' );
 	}
-	update_option( 'pp_mm_secrets_encrypted', 1 );
-} );
+	add_option( 'pp_mm_sites_backup_v1', $old, '', false );
+	delete_option( PP_MM_OPTION_SITES );
+	return true;
+}
+
+/** Colonne scrivibili della tabella siti e relativo formato per $wpdb. */
+function pp_mm_site_columns(): array {
+	return array(
+		'label'            => '%s',
+		'url'              => '%s',
+		'secret'           => '%s',
+		'frequency'        => '%s',
+		'last_check'       => '%d',
+		'last_status'      => '%s',
+		'last_message'     => '%s',
+		'last_detail'      => '%s',
+		'last_check_token' => '%s',
+		'error_since'      => '%d',
+		'created_at'       => '%d',
+	);
+}
+
+function pp_mm_row_to_site( $row ): array {
+	$site = (array) $row;
+	foreach ( array( 'id', 'last_check', 'error_since', 'created_at' ) as $key ) {
+		$site[ $key ] = (int) ( $site[ $key ] ?? 0 );
+	}
+	return $site;
+}
+
+function pp_mm_get_site( int $id ): ?array {
+	global $wpdb;
+	$row = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . pp_mm_sites_table() . ' WHERE id = %d', $id ), ARRAY_A );
+	return $row ? pp_mm_row_to_site( $row ) : null;
+}
+
+/** Inserisce un sito e restituisce il nuovo ID (0 in caso di errore). */
+function pp_mm_insert_site( array $site ): int {
+	global $wpdb;
+	$defaults = array(
+		'label' => '', 'url' => '', 'secret' => '', 'frequency' => 'daily', 'last_check' => 0, 'last_status' => '',
+		'last_message' => '', 'last_detail' => '', 'last_check_token' => '', 'error_since' => 0, 'created_at' => time(),
+	);
+	$data = array_intersect_key( array_merge( $defaults, $site ), $defaults );
+	$data['frequency'] = $data['frequency'] === 'hourly' ? 'hourly' : 'daily';
+	$columns = pp_mm_site_columns();
+	$formats = array();
+	foreach ( array_keys( $data ) as $key ) {
+		$formats[] = $columns[ $key ];
+	}
+	$ok = $wpdb->insert( pp_mm_sites_table(), $data, $formats );
+	return $ok ? (int) $wpdb->insert_id : 0;
+}
+
+/**
+ * Aggiorna solo le colonne indicate di un sito. $where_extra aggiunge condizioni (es. URL e chiave
+ * ancora uguali a quelli controllati). Restituisce il numero di righe aggiornate (0 = nessuna).
+ */
+function pp_mm_update_site( int $id, array $fields, array $where_extra = array() ): int {
+	global $wpdb;
+	$columns = pp_mm_site_columns();
+	$fields  = array_intersect_key( $fields, $columns );
+	$where   = array_merge( array( 'id' => $id ), array_intersect_key( $where_extra, $columns ) );
+	if ( empty( $fields ) ) {
+		return 0;
+	}
+	$where_formats = array();
+	foreach ( array_keys( $where ) as $key ) {
+		$where_formats[] = $key === 'id' ? '%d' : $columns[ $key ];
+	}
+	$fields_formats = array();
+	foreach ( array_keys( $fields ) as $key ) {
+		$fields_formats[] = $columns[ $key ];
+	}
+	return (int) $wpdb->update( pp_mm_sites_table(), $fields, $where, $fields_formats, $where_formats );
+}
+
+function pp_mm_delete_site( int $id ): void {
+	global $wpdb;
+	$wpdb->delete( pp_mm_sites_table(), array( 'id' => $id ), array( '%d' ) );
+	$wpdb->delete( pp_mm_checks_table(), array( 'site_id' => $id ), array( '%d' ) );
+}
+
+function pp_mm_delete_all_sites(): void {
+	global $wpdb;
+	$wpdb->query( 'DELETE FROM ' . pp_mm_sites_table() );
+	$wpdb->query( 'DELETE FROM ' . pp_mm_checks_table() );
+}
+
+/** Tutti i siti, in ordine alfabetico (export, report settimanale). */
+function pp_mm_get_all_sites(): array {
+	global $wpdb;
+	$rows = $wpdb->get_results( 'SELECT * FROM ' . pp_mm_sites_table() . " ORDER BY COALESCE(NULLIF(label, ''), url) ASC, id ASC", ARRAY_A );
+	return array_map( 'pp_mm_row_to_site', (array) $rows );
+}
+
+/**
+ * Siti per la lista, con ricerca, filtro per stato, ordinamento e pagine.
+ * Ordinamento e filtro accettano solo valori da elenchi fissi (nessun input nell'SQL).
+ */
+function pp_mm_query_sites( array $args ): array {
+	global $wpdb;
+	$table  = pp_mm_sites_table();
+	$where  = array( '1=1' );
+	$params = array();
+
+	$search = trim( (string) ( $args['search'] ?? '' ) );
+	if ( $search !== '' ) {
+		$like     = '%' . $wpdb->esc_like( $search ) . '%';
+		$where[]  = '(label LIKE %s OR url LIKE %s)';
+		$params[] = $like;
+		$params[] = $like;
+	}
+	$statuses = array( 'error' => "last_status = 'error'", 'ok' => "last_status = 'ok'", 'pending' => "last_status = ''" );
+	if ( isset( $statuses[ $args['status'] ?? '' ] ) ) {
+		$where[] = $statuses[ $args['status'] ];
+	}
+	$orders = array(
+		'label'      => "COALESCE(NULLIF(label, ''), url)",
+		'last_check' => 'last_check',
+		'status'     => "FIELD(last_status, 'error', '', 'ok')",
+	);
+	$orderby  = $orders[ $args['orderby'] ?? '' ] ?? $orders['label'];
+	$order    = ( $args['order'] ?? '' ) === 'desc' ? 'DESC' : 'ASC';
+	$per_page = max( 1, (int) ( $args['per_page'] ?? 50 ) );
+	$offset   = max( 0, ( (int) ( $args['paged'] ?? 1 ) - 1 ) * $per_page );
+
+	$where_sql = implode( ' AND ', $where );
+	$count_sql = "SELECT COUNT(*) FROM $table WHERE $where_sql";
+	// A parità del criterio scelto, ordine per nome (poi per ID, per pagine stabili).
+	$list_sql  = "SELECT * FROM $table WHERE $where_sql ORDER BY $orderby $order, {$orders['label']} ASC, id ASC LIMIT %d OFFSET %d";
+	$total     = (int) ( $params ? $wpdb->get_var( $wpdb->prepare( $count_sql, $params ) ) : $wpdb->get_var( $count_sql ) );
+	$rows      = $wpdb->get_results( $wpdb->prepare( $list_sql, array_merge( $params, array( $per_page, $offset ) ) ), ARRAY_A );
+
+	return array( 'items' => array_map( 'pp_mm_row_to_site', (array) $rows ), 'total' => $total );
+}
+
+/** Numero di siti per stato: all, error, ok, pending. */
+function pp_mm_status_counts(): array {
+	global $wpdb;
+	$counts = array( 'all' => 0, 'error' => 0, 'ok' => 0, 'pending' => 0 );
+	$rows   = $wpdb->get_results( 'SELECT last_status, COUNT(*) AS n FROM ' . pp_mm_sites_table() . ' GROUP BY last_status', ARRAY_A );
+	foreach ( (array) $rows as $row ) {
+		$key            = $row['last_status'] === '' ? 'pending' : $row['last_status'];
+		$counts[ $key ] = ( $counts[ $key ] ?? 0 ) + (int) $row['n'];
+		$counts['all'] += (int) $row['n'];
+	}
+	return $counts;
+}
+
+/**
+ * Siti da controllare, i più in ritardo per primi. Le soglie coincidono con pp_mm_check_threshold().
+ */
+function pp_mm_get_due_sites( int $now, int $limit ): array {
+	global $wpdb;
+	$hourly = 55 * MINUTE_IN_SECONDS;
+	$daily  = DAY_IN_SECONDS - 5 * MINUTE_IN_SECONDS;
+	$rows   = $wpdb->get_results( $wpdb->prepare(
+		'SELECT * FROM ' . pp_mm_sites_table() . "
+		WHERE ( frequency = 'hourly' AND last_check <= %d ) OR ( frequency <> 'hourly' AND last_check <= %d )
+		ORDER BY last_check + IF( frequency = 'hourly', %d, %d ) ASC, id ASC
+		LIMIT %d",
+		$now - $hourly, $now - $daily, $hourly, $daily, $limit
+	), ARRAY_A );
+	return array_map( 'pp_mm_row_to_site', (array) $rows );
+}
+
+function pp_mm_log_check( int $site_id, array $result, string $source ): void {
+	global $wpdb;
+	$wpdb->insert( pp_mm_checks_table(), array(
+		'site_id'    => $site_id,
+		'checked_at' => time(),
+		'status'     => $result['success'] ? 'ok' : 'error',
+		'source'     => $source === 'manual' ? 'manual' : 'cron',
+		// Per i check riusciti il messaggio è sempre lo stesso: non serve conservarlo.
+		'message'    => $result['success'] ? '' : (string) ( $result['message'] ?? '' ),
+		'detail'     => $result['success'] ? '' : (string) ( $result['detail'] ?? '' ),
+	), array( '%d', '%d', '%s', '%s', '%s', '%s' ) );
+}
+
+/** Rimuove lo storico più vecchio di PP_MM_HISTORY_DAYS giorni (al massimo una volta al giorno). */
+function pp_mm_maybe_purge_history(): void {
+	global $wpdb;
+	if ( time() - (int) get_option( 'pp_mm_history_purged', 0 ) < DAY_IN_SECONDS ) {
+		return;
+	}
+	$wpdb->query( $wpdb->prepare( 'DELETE FROM ' . pp_mm_checks_table() . ' WHERE checked_at < %d', time() - PP_MM_HISTORY_DAYS * DAY_IN_SECONDS ) );
+	update_option( 'pp_mm_history_purged', time(), false );
+}
+
+/** Storico di un sito: ultimi check e statistiche sul periodo. */
+function pp_mm_get_site_history( int $site_id, int $days, int $limit ): array {
+	global $wpdb;
+	$table = pp_mm_checks_table();
+	$since = time() - $days * DAY_IN_SECONDS;
+	$stats = $wpdb->get_row( $wpdb->prepare(
+		"SELECT COUNT(*) AS total, SUM(status = 'error') AS ko FROM $table WHERE site_id = %d AND checked_at >= %d",
+		$site_id, $since
+	), ARRAY_A );
+	$rows  = $wpdb->get_results( $wpdb->prepare(
+		"SELECT * FROM $table WHERE site_id = %d ORDER BY checked_at DESC, id DESC LIMIT %d",
+		$site_id, $limit
+	), ARRAY_A );
+	return array( 'total' => (int) ( $stats['total'] ?? 0 ), 'ko' => (int) ( $stats['ko'] ?? 0 ), 'items' => (array) $rows );
+}
 
 // ─── i18n ─────────────────────────────────────────────────────────────────────
 
@@ -205,70 +524,80 @@ function pp_mm_remote_post_pinned( string $url, array $args, string $ip ) {
 
 // ─── Cron ─────────────────────────────────────────────────────────────────────
 
+// Cron ogni 5 minuti: ogni giro controlla i siti "dovuti", i più in ritardo per primi, entro un tempo
+// massimo. Con molti siti il carico si distribuisce su più giri invece di un unico giro lungo.
+define( 'PP_MM_CRON_SCHEDULE', 'pp_mm_every_5_minutes' );
+define( 'PP_MM_CRON_TIME_BUDGET', 50 );  // secondi per giro (un sito può aggiungerne fino a ~35)
+define( 'PP_MM_CRON_LOCK_TTL', 10 * MINUTE_IN_SECONDS );
+
+add_filter( 'cron_schedules', function ( $schedules ) {
+	$schedules[ PP_MM_CRON_SCHEDULE ] = array(
+		'interval' => 5 * MINUTE_IN_SECONDS,
+		'display'  => __( 'Every 5 minutes (PaperPlane Mail Test)', 'paperplane-mail-test' ),
+	);
+	return $schedules;
+} );
+
 add_action( 'init', 'pp_mm_schedule_cron' );
 
 function pp_mm_schedule_cron() {
-	if ( ! wp_next_scheduled( PP_MM_CRON_HOOK ) ) {
-		wp_schedule_event( time(), 'hourly', PP_MM_CRON_HOOK );
+	// Le installazioni ≤ 1.1.x avevano il cron orario: viene sostituito.
+	if ( wp_get_schedule( PP_MM_CRON_HOOK ) !== PP_MM_CRON_SCHEDULE ) {
+		wp_clear_scheduled_hook( PP_MM_CRON_HOOK );
+		wp_schedule_event( time(), PP_MM_CRON_SCHEDULE, PP_MM_CRON_HOOK );
 	}
 }
 
 add_action( PP_MM_CRON_HOOK, 'pp_mm_run_checks' );
 
-/**
- * Controlla i siti la cui frequenza corrisponde all'orario corrente.
- * - "hourly"  → ogni run
- * - "daily"   → solo se non già controllato nelle ultime 23 ore
- */
+/** Lock atomico contro giri sovrapposti (add_option fallisce se l'opzione esiste già). */
+function pp_mm_acquire_cron_lock(): bool {
+	if ( add_option( 'pp_mm_cron_lock', time(), '', false ) ) {
+		return true;
+	}
+	// Lock rimasto da un giro interrotto (PHP terminato): scaduto dopo PP_MM_CRON_LOCK_TTL.
+	if ( time() - (int) get_option( 'pp_mm_cron_lock' ) > PP_MM_CRON_LOCK_TTL ) {
+		update_option( 'pp_mm_cron_lock', time(), false );
+		return true;
+	}
+	return false;
+}
+
 function pp_mm_run_checks() {
-	$sites = get_option( PP_MM_OPTION_SITES, array() );
-	if ( empty( $sites ) ) {
+	// Ultimo avvio del cron: mostrato nella lista siti per accorgersi se il cron si ferma.
+	update_option( 'pp_mm_last_cron_run', time(), false );
+
+	if ( ! pp_mm_acquire_cron_lock() ) {
 		return;
 	}
-
-	// Evita due run sovrapposti (WP-Cron può partire due volte): alert doppi e stati sovrascritti.
-	if ( get_transient( 'pp_mm_checks_running' ) ) {
-		return;
-	}
-	set_transient( 'pp_mm_checks_running', 1, 15 * MINUTE_IN_SECONDS );
-
-	$now         = time();
-	$silent_test = get_option( PP_MM_OPTION_SILENT_TEST, '' );
-
 	try {
-		foreach ( $sites as $i => &$site ) {
-			if ( ! pp_mm_is_due( $site, $now ) ) {
-				continue;
+		$start       = time();
+		$silent_test = get_option( PP_MM_OPTION_SILENT_TEST, '' );
+		foreach ( pp_mm_get_due_sites( $start, 500 ) as $site ) {
+			if ( time() - $start >= PP_MM_CRON_TIME_BUDGET ) {
+				break; // I siti rimasti sono ancora "dovuti": li prende il giro successivo.
 			}
-
-			// Ogni sito può richiedere fino a ~35 s (timeout + nuovo tentativo): il limite di
-			// esecuzione riparte per ogni sito, così molti siti giù non interrompono il run.
+			// Il limite di esecuzione riparte per ogni sito (timeout + nuovo tentativo ≈ 35 s).
 			if ( function_exists( 'set_time_limit' ) ) {
 				@set_time_limit( 60 );
 			}
-
-			pp_mm_apply_result( $site, pp_mm_check_site( $site, $silent_test ) );
-
-			// Salvataggio dopo ogni sito: se PHP si interrompe, i siti già controllati restano
-			// aggiornati e gli alert già inviati non vengono ripetuti al run successivo.
-			update_option( PP_MM_OPTION_SITES, $sites );
+			pp_mm_apply_result( $site, pp_mm_check_site( $site, $silent_test ), 'cron' );
 		}
-		unset( $site );
-
 		pp_mm_maybe_send_weekly_report();
+		pp_mm_maybe_purge_history();
 	} finally {
-		delete_transient( 'pp_mm_checks_running' );
+		delete_option( 'pp_mm_cron_lock' );
 	}
 }
 
 /**
  * Tempo minimo dall'ultimo check perché un sito sia di nuovo da controllare.
- * Il cron parte ogni ora: la soglia "oraria" è 50 minuti, non 60, perché last_check è registrato
- * a fine check e WP-Cron può partire con qualche secondo o minuto di ritardo. Con la soglia esatta
- * di 60 minuti il sito veniva saltato un giro su due (controllo di fatto ogni 2 ore).
+ * Il cron parte ogni 5 minuti: un sito orario viene controllato al primo giro dopo 55 minuti,
+ * uno giornaliero dopo 23 ore e 55 minuti (cioè ogni ora / ogni giorno, con 5 minuti di tolleranza
+ * per la durata dei check e i ritardi del cron). Le soglie coincidono con pp_mm_get_due_sites().
  */
 function pp_mm_check_threshold( array $site ): int {
-	return ( $site['frequency'] ?? 'daily' ) === 'hourly' ? 50 * MINUTE_IN_SECONDS : 23 * HOUR_IN_SECONDS;
+	return ( $site['frequency'] ?? 'daily' ) === 'hourly' ? 55 * MINUTE_IN_SECONDS : DAY_IN_SECONDS - 5 * MINUTE_IN_SECONDS;
 }
 
 function pp_mm_is_due( array $site, int $now ): bool {
@@ -276,30 +605,43 @@ function pp_mm_is_due( array $site, int $now ): bool {
 }
 
 /**
- * Aggiorna lo stato del sito con l'esito del check e invia le notifiche al cambio di stato:
- * alert al passaggio a KO (o primo KO), notifica di ripristino al ritorno da KO a OK.
+ * Salva l'esito del check sulla riga del sito, registra lo storico e invia le notifiche al cambio
+ * di stato: alert al passaggio a KO (o primo KO), notifica di ripristino al ritorno da KO a OK.
+ * L'esito viene scritto solo se URL e chiave sono ancora quelli controllati: se nel frattempo il
+ * sito è stato modificato o eliminato, si riferisce alla configurazione vecchia e viene scartato.
+ * Restituisce il sito aggiornato, o null se l'esito è stato scartato.
  */
-function pp_mm_apply_result( array &$site, array $result ): void {
+function pp_mm_apply_result( array $site, array $result, string $source = 'cron' ): ?array {
 	$prev_status = $site['last_status'] ?? '';
-
-	$site['last_check']       = time();
-	$site['last_status']      = $result['success'] ? 'ok' : 'error';
-	$site['last_message']     = $result['message'] ?? '';
-	$site['last_detail']      = $result['detail'] ?? '';
-	$site['last_check_token'] = $result['token'] ?? '';
-
+	$prev_since  = (int) ( $site['error_since'] ?? 0 );
+	$fields      = array(
+		'last_check'       => time(),
+		'last_status'      => $result['success'] ? 'ok' : 'error',
+		'last_message'     => (string) ( $result['message'] ?? '' ),
+		'last_detail'      => (string) ( $result['detail'] ?? '' ),
+		'last_check_token' => (string) ( $result['token'] ?? '' ),
+	);
 	if ( ! $result['success'] ) {
-		if ( $prev_status !== 'error' ) {
-			$site['error_since'] = $site['last_check'];
-			pp_mm_send_alert( $site, $result['message'] );
-		}
-		return;
+		$fields['error_since'] = $prev_status === 'error' && $prev_since ? $prev_since : $fields['last_check'];
+	} else {
+		$fields['error_since'] = 0;
 	}
 
-	if ( $prev_status === 'error' ) {
-		pp_mm_send_recovery( $site );
+	$updated = pp_mm_update_site( (int) $site['id'], $fields, array( 'url' => $site['url'], 'secret' => $site['secret'] ) );
+	if ( ! $updated ) {
+		return null;
 	}
-	$site['error_since'] = 0;
+	$site = array_merge( $site, $fields );
+	pp_mm_log_check( (int) $site['id'], $result, $source );
+
+	if ( ! $result['success'] && $prev_status !== 'error' ) {
+		pp_mm_send_alert( $site, $fields['last_message'] );
+	} elseif ( $result['success'] && $prev_status === 'error' ) {
+		$site['error_since'] = $prev_since; // per "KO dal" nella notifica
+		pp_mm_send_recovery( $site );
+		$site['error_since'] = 0;
+	}
+	return $site;
 }
 
 function pp_mm_missing_key_message(): string {
@@ -525,10 +867,7 @@ function pp_mm_send_weekly_report() {
 		return;
 	}
 
-	$sites = get_option( PP_MM_OPTION_SITES, array() );
-	usort( $sites, function( $a, $b ) {
-		return strcasecmp( $a['label'] ?: $a['url'], $b['label'] ?: $b['url'] );
-	} );
+	$sites = pp_mm_get_all_sites();
 
 	$ok_count = 0;
 	$ko_count = 0;
@@ -684,12 +1023,15 @@ function pp_mm_export_decrypt( string $blob, string $key ) {
 // ─── Gestione azioni POST ─────────────────────────────────────────────────────
 
 /**
- * Check manuale ("Controlla ora", "Salva e verifica"): il test va al destinatario degli alert.
- * Aggiorna lo stato del sito (con alert e notifica di ripristino) e salva la lista.
+ * Check manuale ("Controlla ora", "Salva e verifica", "Aggiungi e verifica"): il test va ai
+ * destinatari degli alert. Restituisce il sito aggiornato, o null se non esiste più.
  */
-function pp_mm_manual_check( array &$sites, int $idx ): void {
-	pp_mm_apply_result( $sites[ $idx ], pp_mm_check_site( $sites[ $idx ], get_option( PP_MM_OPTION_NOTIFY, '' ) ) );
-	update_option( PP_MM_OPTION_SITES, $sites );
+function pp_mm_manual_check( int $id ): ?array {
+	$site = pp_mm_get_site( $id );
+	if ( ! $site ) {
+		return null;
+	}
+	return pp_mm_apply_result( $site, pp_mm_check_site( $site, get_option( PP_MM_OPTION_NOTIFY, '' ) ), 'manual' );
 }
 
 add_action( 'admin_init', 'pp_mm_handle_actions' );
@@ -701,74 +1043,61 @@ function pp_mm_handle_actions() {
 
 	$action = sanitize_key( $_POST['pp_mm_action'] ?? '' );
 
+	$page_url = admin_url( 'admin.php?page=pp-mail-monitor' );
+	// ID del sito: le azioni usano l'ID stabile della riga, mai la posizione nella lista.
+	$site_id  = (int) ( $_POST['pp_mm_site_id'] ?? 0 );
+
 	// ── Aggiungi sito ──────────────────────────────────────────────────────────
 	if ( $action === 'add_site' && check_admin_referer( 'pp_mm_add' ) ) {
 		$raw_url = trim( (string) wp_unslash( is_string( $_POST['pp_mm_url'] ?? null ) ? $_POST['pp_mm_url'] : '' ) );
 		$url_error = pp_mm_check_url( $raw_url )['code'];
 		if ( $url_error !== '' ) {
-			wp_safe_redirect( add_query_arg( 'pp_mm_url_error', $url_error, admin_url( 'admin.php?page=pp-mail-monitor' ) ) );
+			wp_safe_redirect( add_query_arg( 'pp_mm_url_error', $url_error, $page_url ) );
 			exit;
 		}
-		$sites   = get_option( PP_MM_OPTION_SITES, array() );
-		$sites[] = array(
-			'label'        => sanitize_text_field( wp_unslash( $_POST['pp_mm_label'] ?? '' ) ),
-			'url'          => esc_url_raw( $raw_url ),
-			'secret'       => pp_mm_encrypt( sanitize_text_field( wp_unslash( $_POST['pp_mm_secret'] ?? '' ) ) ),
-			'frequency'    => in_array( $_POST['pp_mm_frequency'] ?? '', array( 'hourly', 'daily' ), true )
-				? $_POST['pp_mm_frequency']
-				: 'daily',
-			'last_check'   => 0,
-			'last_status'  => '',
-			'last_message' => '',
-		);
-		if ( ! empty( $_POST['pp_mm_verify'] ) ) {
-			$idx = array_key_last( $sites );
-			pp_mm_manual_check( $sites, $idx );
-			wp_safe_redirect( add_query_arg( array( 'pp_mm_saved' => '1', 'pp_mm_checked' => $idx ), admin_url( 'admin.php?page=pp-mail-monitor' ) ) );
+		$new_id = pp_mm_insert_site( array(
+			'label'     => sanitize_text_field( wp_unslash( $_POST['pp_mm_label'] ?? '' ) ),
+			'url'       => esc_url_raw( $raw_url ),
+			'secret'    => pp_mm_encrypt( sanitize_text_field( wp_unslash( $_POST['pp_mm_secret'] ?? '' ) ) ),
+			'frequency' => ( $_POST['pp_mm_frequency'] ?? '' ) === 'hourly' ? 'hourly' : 'daily',
+		) );
+		if ( $new_id && ! empty( $_POST['pp_mm_verify'] ) ) {
+			pp_mm_manual_check( $new_id );
+			wp_safe_redirect( add_query_arg( array( 'pp_mm_saved' => '1', 'pp_mm_checked' => $new_id ), $page_url ) );
 			exit;
 		}
-		update_option( PP_MM_OPTION_SITES, $sites );
-		wp_safe_redirect( add_query_arg( 'pp_mm_saved', '1', admin_url( 'admin.php?page=pp-mail-monitor' ) ) );
+		wp_safe_redirect( add_query_arg( 'pp_mm_saved', '1', $page_url ) );
 		exit;
 	}
 
 	// ── Elimina sito ───────────────────────────────────────────────────────────
 	if ( $action === 'delete_site' && check_admin_referer( 'pp_mm_delete' ) ) {
-		$idx   = (int) ( $_POST['pp_mm_idx'] ?? -1 );
-		$sites = get_option( PP_MM_OPTION_SITES, array() );
-		if ( isset( $sites[ $idx ] ) ) {
-			array_splice( $sites, $idx, 1 );
-			update_option( PP_MM_OPTION_SITES, array_values( $sites ) );
+		if ( $site_id > 0 ) {
+			pp_mm_delete_site( $site_id );
 		}
-		wp_safe_redirect( admin_url( 'admin.php?page=pp-mail-monitor' ) );
+		wp_safe_redirect( $page_url );
 		exit;
 	}
 
 	// ── Controlla ora ──────────────────────────────────────────────────────────
 	if ( $action === 'check_now' && check_admin_referer( 'pp_mm_check' ) ) {
-		$idx   = (int) ( $_POST['pp_mm_idx'] ?? -1 );
-		$sites = get_option( PP_MM_OPTION_SITES, array() );
-		if ( isset( $sites[ $idx ] ) ) {
-			pp_mm_manual_check( $sites, $idx );
-		}
-		wp_safe_redirect( add_query_arg( 'pp_mm_checked', $idx, admin_url( 'admin.php?page=pp-mail-monitor' ) ) );
+		pp_mm_manual_check( $site_id );
+		wp_safe_redirect( add_query_arg( 'pp_mm_checked', $site_id, $page_url ) );
 		exit;
 	}
 
 	// ── Modifica sito ─────────────────────────────────────────────────────────
 	if ( $action === 'edit_site' && check_admin_referer( 'pp_mm_edit' ) ) {
-		$idx      = (int) ( $_POST['pp_mm_idx'] ?? -1 );
-		$sites    = get_option( PP_MM_OPTION_SITES, array() );
-		$page_url = admin_url( 'admin.php?page=pp-mail-monitor' );
-		if ( ! isset( $sites[ $idx ] ) ) {
+		$site = pp_mm_get_site( $site_id );
+		if ( ! $site ) {
 			wp_safe_redirect( $page_url );
 			exit;
 		}
 
 		// URL: validato come in fase di inserimento (SSRF). Campo vuoto = URL invariato.
 		$raw_url = trim( (string) wp_unslash( is_string( $_POST['pp_mm_url'] ?? null ) ? $_POST['pp_mm_url'] : '' ) );
-		$new_url = $raw_url !== '' ? esc_url_raw( $raw_url ) : $sites[ $idx ]['url'];
-		$url_error = $new_url !== $sites[ $idx ]['url'] ? pp_mm_check_url( $new_url )['code'] : '';
+		$new_url = $raw_url !== '' ? esc_url_raw( $raw_url ) : $site['url'];
+		$url_error = $new_url !== $site['url'] ? pp_mm_check_url( $new_url )['code'] : '';
 		if ( $url_error !== '' ) {
 			wp_safe_redirect( add_query_arg( 'pp_mm_url_error', $url_error, $page_url ) );
 			exit;
@@ -777,32 +1106,26 @@ function pp_mm_handle_actions() {
 		// Chiave: mai mostrata nel form. Campo vuoto = chiave invariata.
 		$new_secret = sanitize_text_field( wp_unslash( $_POST['pp_mm_new_secret'] ?? '' ) );
 
-		$sites[ $idx ]['label']     = sanitize_text_field( wp_unslash( $_POST['pp_mm_label'] ?? '' ) );
-		$sites[ $idx ]['frequency'] = in_array( $_POST['pp_mm_frequency'] ?? '', array( 'hourly', 'daily' ), true )
-			? $_POST['pp_mm_frequency']
-			: $sites[ $idx ]['frequency'];
-
-		if ( $new_url !== $sites[ $idx ]['url'] || $new_secret !== '' ) {
-			$sites[ $idx ]['url'] = $new_url;
+		// Solo le colonne modificate dal form: lo stato del sito (scritto dal cron) resta com'è.
+		$fields = array(
+			'label'     => sanitize_text_field( wp_unslash( $_POST['pp_mm_label'] ?? '' ) ),
+			'frequency' => in_array( $_POST['pp_mm_frequency'] ?? '', array( 'hourly', 'daily' ), true ) ? $_POST['pp_mm_frequency'] : $site['frequency'],
+		);
+		if ( $new_url !== $site['url'] || $new_secret !== '' ) {
+			$fields['url'] = $new_url;
 			if ( $new_secret !== '' ) {
-				$sites[ $idx ]['secret'] = pp_mm_encrypt( $new_secret );
+				$fields['secret'] = pp_mm_encrypt( $new_secret );
 			}
 			// Stato azzerato: un sito già in KO non rimanderebbe l'alert se la nuova configurazione fosse errata.
-			$sites[ $idx ]['last_check']       = 0;
-			$sites[ $idx ]['last_status']      = '';
-			$sites[ $idx ]['last_message']     = '';
-			$sites[ $idx ]['last_check_token'] = '';
-			$sites[ $idx ]['last_detail']      = '';
-			$sites[ $idx ]['error_since']      = 0;
+			$fields += array( 'last_check' => 0, 'last_status' => '', 'last_message' => '', 'last_detail' => '', 'last_check_token' => '', 'error_since' => 0 );
 		}
+		pp_mm_update_site( $site_id, $fields );
 
 		if ( ! empty( $_POST['pp_mm_verify'] ) ) {
-			pp_mm_manual_check( $sites, $idx );
-			wp_safe_redirect( add_query_arg( array( 'pp_mm_updated' => '1', 'pp_mm_checked' => $idx ), $page_url ) );
+			pp_mm_manual_check( $site_id );
+			wp_safe_redirect( add_query_arg( array( 'pp_mm_updated' => '1', 'pp_mm_checked' => $site_id ), $page_url ) );
 			exit;
 		}
-
-		update_option( PP_MM_OPTION_SITES, $sites );
 		wp_safe_redirect( add_query_arg( 'pp_mm_updated', '1', $page_url ) );
 		exit;
 	}
@@ -839,7 +1162,7 @@ function pp_mm_handle_actions() {
 				$row['secret_enc'] = pp_mm_export_encrypt( pp_mm_decrypt( $site['secret'] ?? '' ), $key );
 			}
 			return $row;
-		}, get_option( PP_MM_OPTION_SITES, array() ) );
+		}, pp_mm_get_all_sites() );
 
 		$export = array(
 			'version'     => '2.0',
@@ -976,10 +1299,10 @@ function pp_mm_handle_actions() {
 		}
 
 		if ( $mode === 'replace' ) {
-			update_option( PP_MM_OPTION_SITES, $imported );
-		} else {
-			$existing = get_option( PP_MM_OPTION_SITES, array() );
-			update_option( PP_MM_OPTION_SITES, array_merge( $existing, $imported ) );
+			pp_mm_delete_all_sites();
+		}
+		foreach ( $imported as $site ) {
+			pp_mm_insert_site( $site );
 		}
 
 		wp_safe_redirect( add_query_arg( array( 'pp_mm_imported' => count( $imported ), 'pp_mm_imported_nokeys' => $keys === 'none' ? 1 : null ), admin_url( 'admin.php?page=pp-mail-monitor' ) ) );
@@ -999,13 +1322,43 @@ function pp_mm_render_sites_page() {
 	if ( ! current_user_can( 'manage_options' ) ) {
 		wp_die( esc_html__( 'You do not have sufficient permissions to access this page.', 'paperplane-mail-test' ) );
 	}
+	if ( ( $_GET['view'] ?? '' ) === 'history' ) {
+		pp_mm_render_history_page( (int) ( $_GET['site'] ?? 0 ) );
+		return;
+	}
 
-	$sites   = get_option( PP_MM_OPTION_SITES, array() );
-	$checked = isset( $_GET['pp_mm_checked'] ) ? (int) $_GET['pp_mm_checked'] : -1;
+	$page_url = admin_url( 'admin.php?page=pp-mail-monitor' );
+	// Parametri della lista: solo valori da elenchi fissi o numeri (nessun input libero nell'SQL).
+	$search   = sanitize_text_field( wp_unslash( $_GET['s'] ?? '' ) );
+	$status   = in_array( $_GET['status'] ?? '', array( 'error', 'ok', 'pending' ), true ) ? $_GET['status'] : '';
+	$orderby  = in_array( $_GET['orderby'] ?? '', array( 'label', 'last_check', 'status' ), true ) ? $_GET['orderby'] : 'label';
+	$order    = ( $_GET['order'] ?? '' ) === 'desc' ? 'desc' : 'asc';
+	$paged    = max( 1, (int) ( $_GET['paged'] ?? 1 ) );
+	$per_page = 50;
+	$list     = pp_mm_query_sites( compact( 'search', 'status', 'orderby', 'order', 'paged', 'per_page' ) );
+	$sites    = $list['items'];
+	$counts   = pp_mm_status_counts();
+	$checked  = isset( $_GET['pp_mm_checked'] ) ? pp_mm_get_site( (int) $_GET['pp_mm_checked'] ) : null;
+	// Link della lista che conservano ricerca, filtro e ordinamento correnti.
+	$list_url = function ( array $changes ) use ( $page_url, $search, $status, $orderby, $order ) {
+		$args = array_merge( array( 's' => $search, 'status' => $status, 'orderby' => $orderby, 'order' => $order ), $changes );
+		return add_query_arg( array_map( 'rawurlencode', array_filter( $args, 'strlen' ) ), $page_url );
+	};
 	?>
 	<div class="wrap">
 		<h1><?php esc_html_e( 'Monitored Sites', 'paperplane-mail-test' ); ?></h1>
 		<p><?php printf( __( 'Periodically checks that the mail function works on each site. Requires the %s plugin installed on each monitored site.', 'paperplane-mail-test' ), '<strong>PaperPlane Mail Test Child</strong>' ); ?></p>
+
+		<?php
+		// Il cron gira ogni 5 minuti: se è fermo da più di 15 i check non partono (es. sito senza visite e senza cron di sistema).
+		$last_cron = (int) get_option( 'pp_mm_last_cron_run', 0 );
+		if ( $counts['all'] > 0 && ( ! $last_cron || time() - $last_cron > 15 * MINUTE_IN_SECONDS ) ) : ?>
+			<div class="notice notice-warning"><p>
+				<?php echo $last_cron
+					? esc_html( sprintf( __( 'The checks have not run for %s: WP-Cron is not running regularly. Configure a system cron that calls wp-cron.php every 5 minutes (see the README).', 'paperplane-mail-test' ), human_time_diff( $last_cron, time() ) ) )
+					: esc_html__( 'The checks have not run yet: WP-Cron is not running regularly. Configure a system cron that calls wp-cron.php every 5 minutes (see the README).', 'paperplane-mail-test' ); ?>
+			</p></div>
+		<?php endif; ?>
 
 		<?php if ( isset( $_GET['pp_mm_saved'] ) ) : ?>
 			<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Site added.', 'paperplane-mail-test' ); ?></p></div>
@@ -1028,31 +1381,46 @@ function pp_mm_render_sites_page() {
 				); ?>
 			</p></div>
 		<?php endif; ?>
-		<?php
-		// Il notice usa l'indice originale (prima dell'ordinamento)
-		if ( $checked >= 0 && isset( $sites[ $checked ] ) ) :
-			$s = $sites[ $checked ]; ?>
-			<div class="notice notice-<?php echo $s['last_status'] === 'ok' ? 'success' : 'error'; ?> is-dismissible">
-				<p>Check <strong><?php echo esc_html( $s['label'] ?: $s['url'] ); ?></strong>:
-				<?php echo $s['last_status'] === 'ok' ? '✔ OK' : '✖ KO — ' . esc_html( $s['last_message'] ); ?></p>
+		<?php if ( $checked ) : ?>
+			<div class="notice notice-<?php echo $checked['last_status'] === 'ok' ? 'success' : 'error'; ?> is-dismissible">
+				<p>Check <strong><?php echo esc_html( $checked['label'] ?: $checked['url'] ); ?></strong>:
+				<?php echo $checked['last_status'] === 'ok' ? '✔ OK' : '✖ KO — ' . esc_html( $checked['last_message'] ); ?></p>
 			</div>
 		<?php endif; ?>
 
-		<h2><?php esc_html_e( 'Sites', 'paperplane-mail-test' ); ?> <span style="font-weight:normal;color:#646970">(<?php echo count( $sites ); ?>)</span></h2>
+		<h2><?php esc_html_e( 'Sites', 'paperplane-mail-test' ); ?> <span style="font-weight:normal;color:#646970">(<?php echo (int) $counts['all']; ?>)</span></h2>
 
-		<?php
-		// Conserva l'indice originale prima di ordinare, così i form passano
-		// sempre l'indice corretto rispetto a wp_options.
-		foreach ( $sites as $orig_idx => &$s ) {
-			$s['_orig_idx'] = $orig_idx;
-		}
-		unset( $s );
-		if ( ! empty( $sites ) ) {
-			usort( $sites, function( $a, $b ) {
-				return strcasecmp( $a['label'] ?: $a['url'], $b['label'] ?: $b['url'] );
-			} );
-		}
-		?>
+		<?php if ( $counts['all'] > 0 ) : ?>
+		<ul class="subsubsub" style="float:none;margin:0 0 8px">
+			<?php
+			$filters = array(
+				''        => __( 'All', 'paperplane-mail-test' ),
+				'error'   => __( 'KO', 'paperplane-mail-test' ),
+				'ok'      => __( 'OK', 'paperplane-mail-test' ),
+				'pending' => __( 'Never checked', 'paperplane-mail-test' ),
+			);
+			$last = array_key_last( $filters );
+			foreach ( $filters as $key => $label ) {
+				$n       = $counts[ $key === '' ? 'all' : $key ];
+				$current = $status === $key;
+				// Il separatore "|" sta dentro <li>, come nell'admin di WordPress (una <ul> può contenere solo <li>).
+				echo '<li><a href="' . esc_url( $list_url( array( 'status' => $key, 'paged' => '' ) ) ) . '"' . ( $current ? ' class="current" aria-current="page"' : '' ) . '>'
+					. esc_html( $label ) . ' <span class="count">(' . (int) $n . ')</span></a>' . ( $key === $last ? '' : ' |' ) . '</li>';
+			}
+			?>
+		</ul>
+		<form method="get" class="search-form" style="margin:0 0 12px">
+			<input type="hidden" name="page" value="pp-mail-monitor">
+			<?php if ( $status !== '' ) : ?><input type="hidden" name="status" value="<?php echo esc_attr( $status ); ?>"><?php endif; ?>
+			<label class="screen-reader-text" for="pp-mm-search"><?php esc_html_e( 'Search sites', 'paperplane-mail-test' ); ?></label>
+			<input type="search" id="pp-mm-search" name="s" value="<?php echo esc_attr( $search ); ?>" placeholder="<?php esc_attr_e( 'Name or URL', 'paperplane-mail-test' ); ?>">
+			<button type="submit" class="button"><?php esc_html_e( 'Search sites', 'paperplane-mail-test' ); ?></button>
+			<?php if ( $search !== '' ) : ?>
+				<a href="<?php echo esc_url( $list_url( array( 's' => '', 'paged' => '' ) ) ); ?>"><?php esc_html_e( 'Clear search', 'paperplane-mail-test' ); ?></a>
+			<?php endif; ?>
+		</form>
+		<?php endif; ?>
+
 		<?php if ( ! empty( $sites ) ) : ?>
 		<style>
 			/* Righe alternate per sito (non per <tr>: ogni sito ha anche la riga nascosta del form Modifica). */
@@ -1063,44 +1431,54 @@ function pp_mm_render_sites_page() {
 			/* Form Modifica aperto: il bordo va sotto il form, sito e form restano un unico blocco. */
 			.pp-mm-sites tbody tr.pp-mm-site.pp-mm-editing > td { border-bottom: 0; }
 		</style>
-		<table class="widefat pp-mm-sites" style="margin-bottom:24px">
+		<?php
+		// Intestazione ordinabile: link con aria-sort sulla colonna ordinata.
+		$sortable = function ( string $key, string $label ) use ( $orderby, $order, $list_url ) {
+			$is_current = $orderby === $key;
+			$next       = $is_current && $order === 'asc' ? 'desc' : 'asc';
+			$aria       = $is_current ? ' aria-sort="' . ( $order === 'asc' ? 'ascending' : 'descending' ) . '"' : '';
+			$arrow      = $is_current ? ( $order === 'asc' ? ' ▲' : ' ▼' ) : '';
+			return '<th scope="col"' . $aria . '><a href="' . esc_url( $list_url( array( 'orderby' => $key, 'order' => $next, 'paged' => '' ) ) ) . '">' . esc_html( $label ) . '<span aria-hidden="true">' . $arrow . '</span></a></th>';
+		};
+		?>
+		<table class="widefat pp-mm-sites" style="margin-bottom:12px">
 			<caption class="screen-reader-text"><?php esc_html_e( 'Monitored Sites', 'paperplane-mail-test' ); ?></caption>
 			<thead>
 				<tr>
-					<th scope="col"><?php esc_html_e( 'Site', 'paperplane-mail-test' ); ?></th>
+					<?php echo $sortable( 'label', __( 'Site', 'paperplane-mail-test' ) ); ?>
 					<th scope="col"><?php esc_html_e( 'Frequency', 'paperplane-mail-test' ); ?></th>
-					<th scope="col"><?php esc_html_e( 'Last check', 'paperplane-mail-test' ); ?></th>
+					<?php echo $sortable( 'last_check', __( 'Last check', 'paperplane-mail-test' ) ); ?>
 					<th scope="col"><?php esc_html_e( 'Next check', 'paperplane-mail-test' ); ?></th>
-					<th scope="col"><?php esc_html_e( 'Status', 'paperplane-mail-test' ); ?></th>
+					<?php echo $sortable( 'status', __( 'Status', 'paperplane-mail-test' ) ); ?>
 					<th scope="col"><?php esc_html_e( 'Actions', 'paperplane-mail-test' ); ?></th>
 				</tr>
 			</thead>
 			<tbody>
 			<?php
 			$row_n = 0;
-			foreach ( $sites as $i => $site ) :
+			foreach ( $sites as $site ) :
 				$row_class  = ( $row_n++ % 2 === 0 ) ? 'pp-mm-row-even' : 'pp-mm-row-odd';
 				$site_name  = $site['label'] ?: $site['url'];
-				$edit_id    = 'pp-mm-edit-' . (int) $site['_orig_idx'];
-				$status     = $site['last_status'] ?? '';
+				$edit_id    = 'pp-mm-edit-' . (int) $site['id'];
+				$status_st  = $site['last_status'];
 				$last_check = $site['last_check'] ? wp_date( 'Y/m/d H:i', $site['last_check'] ) : '—';
-				$color      = $status === 'ok' ? '#007017' : ( $status === 'error' ? '#b32d2e' : '#646970' );
-				$label_st   = $status === 'ok' ? '✔ OK' : ( $status === 'error' ? '✖ KO' : '—' );
+				$color      = $status_st === 'ok' ? '#007017' : ( $status_st === 'error' ? '#b32d2e' : '#646970' );
+				$label_st   = $status_st === 'ok' ? '✔ OK' : ( $status_st === 'error' ? '✖ KO' : '—' );
 
-				$last_ts   = (int) ( $site['last_check'] ?? 0 );
-				// Orario indicativo del prossimo check: il cron orario dopo la soglia di pp_mm_is_due().
-				$interval  = $site['frequency'] === 'hourly' ? HOUR_IN_SECONDS : 24 * HOUR_IN_SECONDS;
+				$last_ts = (int) $site['last_check'];
 				if ( ! $last_ts ) {
 					$next_check = esc_html__( 'Pending', 'paperplane-mail-test' );
 				} elseif ( pp_mm_is_due( $site, time() ) ) {
 					$next_check = esc_html__( 'Soon', 'paperplane-mail-test' );
 				} else {
-					$next_check = wp_date( 'Y/m/d H:i', $last_ts + $interval );
+					// Orario indicativo: primo giro del cron (ogni 5 minuti) dopo la soglia di pp_mm_is_due().
+					$next_check = wp_date( 'Y/m/d H:i', $last_ts + pp_mm_check_threshold( $site ) );
 				}
+				$history_url = add_query_arg( array( 'view' => 'history', 'site' => (int) $site['id'] ), $page_url );
 			?>
 				<tr class="pp-mm-site <?php echo esc_attr( $row_class ); ?>">
 					<td>
-						<strong><?php echo esc_html( $site['label'] ?: $site['url'] ); ?></strong><br>
+						<strong><?php echo esc_html( $site_name ); ?></strong><br>
 						<span style="color:#646970;font-size:.9em"><?php echo esc_html( $site['url'] ); ?></span>
 					</td>
 					<td><?php echo $site['frequency'] === 'hourly' ? esc_html__( 'Every hour', 'paperplane-mail-test' ) : esc_html__( 'Every day', 'paperplane-mail-test' ); ?></td>
@@ -1108,7 +1486,7 @@ function pp_mm_render_sites_page() {
 					<td><?php echo esc_html( $next_check ); ?></td>
 					<td style="color:<?php echo $color; ?>;font-weight:bold">
 						<?php echo $label_st; ?>
-						<?php if ( $status === 'error' ) : ?>
+						<?php if ( $status_st === 'error' ) : ?>
 							<?php if ( $site['last_message'] ) : ?>
 								<br><span style="font-weight:normal;font-size:.85em"><?php echo esc_html( $site['last_message'] ); ?></span>
 							<?php endif; ?>
@@ -1124,16 +1502,18 @@ function pp_mm_render_sites_page() {
 						<form method="post" style="display:inline">
 							<?php wp_nonce_field( 'pp_mm_check' ); ?>
 							<input type="hidden" name="pp_mm_action" value="check_now">
-							<input type="hidden" name="pp_mm_idx" value="<?php echo (int) $site['_orig_idx']; ?>">
+							<input type="hidden" name="pp_mm_site_id" value="<?php echo (int) $site['id']; ?>">
 							<button type="submit" class="button button-secondary" aria-label="<?php echo esc_attr( __( 'Check now', 'paperplane-mail-test' ) . ': ' . $site_name ); ?>"><?php esc_html_e( 'Check now', 'paperplane-mail-test' ); ?></button>
 						</form>
 						&nbsp;
 						<button type="button" class="button button-secondary pp-mm-edit-btn" data-row="<?php echo esc_attr( $edit_id ); ?>" aria-expanded="false" aria-controls="<?php echo esc_attr( $edit_id ); ?>" aria-label="<?php echo esc_attr( __( 'Edit', 'paperplane-mail-test' ) . ': ' . $site_name ); ?>"><?php esc_html_e( 'Edit', 'paperplane-mail-test' ); ?></button>
 						&nbsp;
+						<a class="button button-secondary" href="<?php echo esc_url( $history_url ); ?>" aria-label="<?php echo esc_attr( __( 'History', 'paperplane-mail-test' ) . ': ' . $site_name ); ?>"><?php esc_html_e( 'History', 'paperplane-mail-test' ); ?></a>
+						&nbsp;
 						<form method="post" style="display:inline" onsubmit="return confirm('<?php echo esc_js( __( 'Remove this site?', 'paperplane-mail-test' ) ); ?>')">
 							<?php wp_nonce_field( 'pp_mm_delete' ); ?>
 							<input type="hidden" name="pp_mm_action" value="delete_site">
-							<input type="hidden" name="pp_mm_idx" value="<?php echo (int) $site['_orig_idx']; ?>">
+							<input type="hidden" name="pp_mm_site_id" value="<?php echo (int) $site['id']; ?>">
 							<button type="submit" class="button button-link-delete" aria-label="<?php echo esc_attr( __( 'Remove', 'paperplane-mail-test' ) . ': ' . $site_name ); ?>"><?php esc_html_e( 'Remove', 'paperplane-mail-test' ); ?></button>
 						</form>
 					</td>
@@ -1143,7 +1523,7 @@ function pp_mm_render_sites_page() {
 						<form method="post" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
 							<?php wp_nonce_field( 'pp_mm_edit' ); ?>
 							<input type="hidden" name="pp_mm_action" value="edit_site">
-							<input type="hidden" name="pp_mm_idx" value="<?php echo (int) $site['_orig_idx']; ?>">
+							<input type="hidden" name="pp_mm_site_id" value="<?php echo (int) $site['id']; ?>">
 							<label style="display:flex;align-items:center;gap:6px">
 								<strong><?php esc_html_e( 'Name / label', 'paperplane-mail-test' ); ?></strong>
 								<input type="text" name="pp_mm_label" class="regular-text" value="<?php echo esc_attr( $site['label'] ); ?>">
@@ -1172,6 +1552,23 @@ function pp_mm_render_sites_page() {
 			<?php endforeach; ?>
 			</tbody>
 		</table>
+		<?php
+		$pages = (int) ceil( $list['total'] / $per_page );
+		if ( $pages > 1 ) : ?>
+			<nav class="tablenav" aria-label="<?php esc_attr_e( 'Sites pagination', 'paperplane-mail-test' ); ?>" style="margin-bottom:24px">
+				<div class="tablenav-pages">
+					<span class="displaying-num"><?php echo esc_html( sprintf( _n( '%s site', '%s sites', $list['total'], 'paperplane-mail-test' ), number_format_i18n( $list['total'] ) ) ); ?></span>
+					<?php echo paginate_links( array(
+						'base'      => add_query_arg( 'paged', '%#%', $list_url( array( 'paged' => '' ) ) ),
+						'format'    => '',
+						'current'   => $paged,
+						'total'     => $pages,
+						'prev_text' => '&laquo;<span class="screen-reader-text"> ' . esc_html__( 'Previous page', 'paperplane-mail-test' ) . '</span>',
+						'next_text' => '<span class="screen-reader-text">' . esc_html__( 'Next page', 'paperplane-mail-test' ) . ' </span>&raquo;',
+					) ); ?>
+				</div>
+			</nav>
+		<?php endif; ?>
 		<script>
 		document.querySelectorAll('.pp-mm-edit-btn').forEach(function(btn) {
 			btn.addEventListener('click', function() {
@@ -1198,6 +1595,8 @@ function pp_mm_render_sites_page() {
 			});
 		});
 		</script>
+		<?php elseif ( $counts['all'] > 0 ) : ?>
+			<p><?php esc_html_e( 'No sites match the search or filter.', 'paperplane-mail-test' ); ?></p>
 		<?php else : ?>
 			<p><?php esc_html_e( 'No sites configured.', 'paperplane-mail-test' ); ?></p>
 		<?php endif; ?>
@@ -1240,6 +1639,68 @@ function pp_mm_render_sites_page() {
 				<button type="submit" name="pp_mm_verify" value="1" class="button button-secondary"><?php esc_html_e( 'Add and verify', 'paperplane-mail-test' ); ?></button>
 			</p>
 		</form>
+	</div>
+	<?php
+}
+
+// ─── Pagina: Storico di un sito ──────────────────────────────────────────────
+
+function pp_mm_render_history_page( int $site_id ) {
+	$page_url = admin_url( 'admin.php?page=pp-mail-monitor' );
+	$site     = pp_mm_get_site( $site_id );
+	echo '<div class="wrap">';
+	if ( ! $site ) {
+		echo '<h1>' . esc_html__( 'History', 'paperplane-mail-test' ) . '</h1><p>' . esc_html__( 'Site not found.', 'paperplane-mail-test' ) . '</p>';
+		echo '<p><a href="' . esc_url( $page_url ) . '">&larr; ' . esc_html__( 'Back to the sites', 'paperplane-mail-test' ) . '</a></p></div>';
+		return;
+	}
+	$name    = $site['label'] ?: $site['url'];
+	$history = pp_mm_get_site_history( $site_id, 30, 200 );
+	$avail   = $history['total'] ? round( 100 * ( $history['total'] - $history['ko'] ) / $history['total'], 1 ) : null;
+	?>
+		<h1><?php echo esc_html( sprintf( __( 'History: %s', 'paperplane-mail-test' ), $name ) ); ?></h1>
+		<p><a href="<?php echo esc_url( $page_url ); ?>">&larr; <?php esc_html_e( 'Back to the sites', 'paperplane-mail-test' ); ?></a></p>
+		<p><?php echo esc_html( $site['url'] ); ?></p>
+
+		<h2><?php esc_html_e( 'Last 30 days', 'paperplane-mail-test' ); ?></h2>
+		<?php if ( $history['total'] ) : ?>
+			<p><?php echo esc_html( sprintf(
+				/* translators: 1: checks, 2: KO checks, 3: percentage */
+				__( '%1$d checks, %2$d KO — %3$s%% successful', 'paperplane-mail-test' ),
+				$history['total'], $history['ko'], number_format_i18n( $avail, 1 )
+			) ); ?></p>
+		<?php else : ?>
+			<p><?php esc_html_e( 'No checks in the last 30 days.', 'paperplane-mail-test' ); ?></p>
+		<?php endif; ?>
+
+		<h2><?php esc_html_e( 'Recent checks', 'paperplane-mail-test' ); ?></h2>
+		<?php if ( $history['items'] ) : ?>
+		<table class="widefat striped" style="max-width:1000px">
+			<caption class="screen-reader-text"><?php esc_html_e( 'Recent checks', 'paperplane-mail-test' ); ?></caption>
+			<thead><tr>
+				<th scope="col"><?php esc_html_e( 'Date', 'paperplane-mail-test' ); ?></th>
+				<th scope="col"><?php esc_html_e( 'Status', 'paperplane-mail-test' ); ?></th>
+				<th scope="col"><?php esc_html_e( 'Type', 'paperplane-mail-test' ); ?></th>
+				<th scope="col"><?php esc_html_e( 'Cause', 'paperplane-mail-test' ); ?></th>
+			</tr></thead>
+			<tbody>
+			<?php foreach ( $history['items'] as $row ) : ?>
+				<tr>
+					<td><?php echo esc_html( wp_date( 'Y/m/d H:i', (int) $row['checked_at'] ) ); ?></td>
+					<td style="font-weight:bold;color:<?php echo $row['status'] === 'ok' ? '#007017' : '#b32d2e'; ?>"><?php echo $row['status'] === 'ok' ? '✔ OK' : '✖ KO'; ?></td>
+					<td><?php echo $row['source'] === 'manual' ? esc_html__( 'Manual', 'paperplane-mail-test' ) : esc_html__( 'Automatic', 'paperplane-mail-test' ); ?></td>
+					<td>
+						<?php echo esc_html( $row['message'] ); ?>
+						<?php if ( $row['detail'] !== '' ) : ?><br><span style="font-size:.85em;color:#646970"><?php echo esc_html( $row['detail'] ); ?></span><?php endif; ?>
+					</td>
+				</tr>
+			<?php endforeach; ?>
+			</tbody>
+		</table>
+		<p class="description"><?php echo esc_html( sprintf( __( 'The history is kept for %d days.', 'paperplane-mail-test' ), PP_MM_HISTORY_DAYS ) ); ?></p>
+		<?php else : ?>
+			<p><?php esc_html_e( 'No checks recorded yet.', 'paperplane-mail-test' ); ?></p>
+		<?php endif; ?>
 	</div>
 	<?php
 }

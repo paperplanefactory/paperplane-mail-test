@@ -3,7 +3,7 @@ Contributors: paperplanefactory
 Requires at least: 5.9
 Tested up to: 7.1
 Requires PHP: 8.0
-Stable tag: 1.1.12
+Stable tag: 1.2.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -16,6 +16,17 @@ PaperPlane Mail Test monitors the mail function on your client sites from a cent
 Each client site must have the PaperPlane Mail Test Child plugin installed and configured.
 
 == Changelog ==
+
+= 1.2.0 =
+* Archivio: i siti sono in una tabella dedicata, una riga per sito con ID stabile (prima un'unica opzione con tutto l'elenco, caricata a ogni pagina). Migrazione automatica dall'opzione `pp_mm_sites` in un'unica transazione; l'elenco precedente resta come copia di sicurezza
+* Fix: un giro del cron non sovrascrive più le modifiche fatte nell'admin mentre è in corso (prima una chiave cambiata o un sito aggiunto durante il giro andavano persi)
+* Fix: le azioni (Controlla ora, Modifica, Rimuovi) usano l'ID del sito invece della posizione nella lista: da una pagina rimasta aperta non agiscono più sul sito sbagliato
+* Se un sito viene modificato o eliminato durante il suo check, l'esito (relativo alla configurazione precedente) viene scartato
+* Cron ogni 5 minuti con tempo massimo per giro (circa un minuto): con molti siti il carico si distribuisce su più giri; i siti più in ritardo vengono controllati per primi. Soglie: orario 55 minuti, giornaliero 23 ore e 55 minuti. Lock atomico contro giri sovrapposti
+* Avviso nella lista siti se i check non vengono eseguiti da più di 15 minuti; README con le istruzioni per il cron di sistema
+* Lista siti: ricerca per nome o URL, filtri per stato con conteggi, ordinamento per nome, ultimo check o stato, pagine da 50 siti
+* Storico dei check per sito (90 giorni): ultimi check con causa, numero di check e KO e percentuale di successo negli ultimi 30 giorni
+* La disinstallazione rimuove anche le tabelle
 
 = 1.1.12 =
 * Fix: i siti impostati "ogni ora" venivano controllati di fatto ogni 2 ore. Il sito risultava da controllare solo dopo 60 minuti esatti dall'ultimo check, registrato a fine check: al giro successivo del cron mancavano pochi secondi e il sito veniva saltato. Ora la soglia oraria è 50 minuti (giornaliera invariata, 23 ore)

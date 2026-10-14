@@ -427,3 +427,95 @@ msgstr ""
 
 msgid "Wrong password, or the file has been modified. No sites were imported."
 msgstr ""
+
+msgid "%1$d checks, %2$d KO — %3$s%% successful"
+msgstr ""
+
+msgid "All"
+msgstr ""
+
+msgid "Automatic"
+msgstr ""
+
+msgid "Back to the sites"
+msgstr ""
+
+msgid "Cause"
+msgstr ""
+
+msgid "Clear search"
+msgstr ""
+
+msgid "Date"
+msgstr ""
+
+msgid "Every 5 minutes (PaperPlane Mail Test)"
+msgstr ""
+
+msgid "History"
+msgstr ""
+
+msgid "History: %s"
+msgstr ""
+
+msgid "KO"
+msgstr ""
+
+msgid "Last 30 days"
+msgstr ""
+
+msgid "Manual"
+msgstr ""
+
+msgid "Name or URL"
+msgstr ""
+
+msgid "Never checked"
+msgstr ""
+
+msgid "Next page"
+msgstr ""
+
+msgid "No checks in the last 30 days."
+msgstr ""
+
+msgid "No checks recorded yet."
+msgstr ""
+
+msgid "No sites match the search or filter."
+msgstr ""
+
+msgid "OK"
+msgstr ""
+
+msgid "Previous page"
+msgstr ""
+
+msgid "Recent checks"
+msgstr ""
+
+msgid "Search sites"
+msgstr ""
+
+msgid "Site not found."
+msgstr ""
+
+msgid "Sites pagination"
+msgstr ""
+
+msgid "The checks have not run for %s: WP-Cron is not running regularly. Configure a system cron that calls wp-cron.php every 5 minutes (see the README)."
+msgstr ""
+
+msgid "The checks have not run yet: WP-Cron is not running regularly. Configure a system cron that calls wp-cron.php every 5 minutes (see the README)."
+msgstr ""
+
+msgid "The history is kept for %d days."
+msgstr ""
+
+msgid "Type"
+msgstr ""
+
+msgid "%s site"
+msgid_plural "%s sites"
+msgstr[0] ""
+msgstr[1] ""
