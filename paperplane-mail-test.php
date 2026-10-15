@@ -1082,7 +1082,11 @@ function pp_mm_handle_actions() {
 	// ── Controlla ora ──────────────────────────────────────────────────────────
 	if ( $action === 'check_now' && check_admin_referer( 'pp_mm_check' ) ) {
 		pp_mm_manual_check( $site_id );
-		wp_safe_redirect( add_query_arg( 'pp_mm_checked', $site_id, $page_url ) );
+		// Dallo Storico si torna allo Storico dello stesso sito; altrimenti alla lista.
+		$back = ( $_POST['pp_mm_return'] ?? '' ) === 'history'
+			? add_query_arg( array( 'view' => 'history', 'site' => $site_id ), $page_url )
+			: $page_url;
+		wp_safe_redirect( add_query_arg( 'pp_mm_checked', $site_id, $back ) );
 		exit;
 	}
 
@@ -1347,7 +1351,8 @@ function pp_mm_render_sites_page() {
 	?>
 	<div class="wrap">
 		<h1><?php esc_html_e( 'Monitored Sites', 'paperplane-mail-test' ); ?></h1>
-		<p><?php printf( __( 'Periodically checks that the mail function works on each site. Requires the %s plugin installed on each monitored site.', 'paperplane-mail-test' ), '<strong>PaperPlane Mail Test Child</strong>' ); ?></p>
+		<?php // Marcatore standard di WordPress: gli avvisi (di sistema e del plugin) vanno subito dopo il titolo. ?>
+		<hr class="wp-header-end">
 
 		<?php
 		// Il cron gira ogni 5 minuti: se è fermo da più di 15 i check non partono (es. sito senza visite e senza cron di sistema).
@@ -1387,6 +1392,8 @@ function pp_mm_render_sites_page() {
 				<?php echo $checked['last_status'] === 'ok' ? '✔ OK' : '✖ KO — ' . esc_html( $checked['last_message'] ); ?></p>
 			</div>
 		<?php endif; ?>
+
+		<p><?php printf( __( 'Periodically checks that the mail function works on each site. Requires the %s plugin installed on each monitored site.', 'paperplane-mail-test' ), '<strong>PaperPlane Mail Test Child</strong>' ); ?></p>
 
 		<h2><?php esc_html_e( 'Sites', 'paperplane-mail-test' ); ?> <span style="font-weight:normal;color:#646970">(<?php echo (int) $counts['all']; ?>)</span></h2>
 
@@ -1650,7 +1657,7 @@ function pp_mm_render_history_page( int $site_id ) {
 	$site     = pp_mm_get_site( $site_id );
 	echo '<div class="wrap">';
 	if ( ! $site ) {
-		echo '<h1>' . esc_html__( 'History', 'paperplane-mail-test' ) . '</h1><p>' . esc_html__( 'Site not found.', 'paperplane-mail-test' ) . '</p>';
+		echo '<h1>' . esc_html__( 'History', 'paperplane-mail-test' ) . '</h1><hr class="wp-header-end"><p>' . esc_html__( 'Site not found.', 'paperplane-mail-test' ) . '</p>';
 		echo '<p><a href="' . esc_url( $page_url ) . '">&larr; ' . esc_html__( 'Back to the sites', 'paperplane-mail-test' ) . '</a></p></div>';
 		return;
 	}
@@ -1659,6 +1666,13 @@ function pp_mm_render_history_page( int $site_id ) {
 	$avail   = $history['total'] ? round( 100 * ( $history['total'] - $history['ko'] ) / $history['total'], 1 ) : null;
 	?>
 		<h1><?php echo esc_html( sprintf( __( 'History: %s', 'paperplane-mail-test' ), $name ) ); ?></h1>
+		<hr class="wp-header-end">
+		<?php if ( (int) ( $_GET['pp_mm_checked'] ?? 0 ) === $site_id ) : ?>
+			<div class="notice notice-<?php echo $site['last_status'] === 'ok' ? 'success' : 'error'; ?> is-dismissible">
+				<p>Check <strong><?php echo esc_html( $name ); ?></strong>:
+				<?php echo $site['last_status'] === 'ok' ? '✔ OK' : '✖ KO — ' . esc_html( $site['last_message'] ); ?></p>
+			</div>
+		<?php endif; ?>
 		<p><a href="<?php echo esc_url( $page_url ); ?>">&larr; <?php esc_html_e( 'Back to the sites', 'paperplane-mail-test' ); ?></a></p>
 
 		<?php
@@ -1694,6 +1708,20 @@ function pp_mm_render_history_page( int $site_id ) {
 					<?php if ( $status === 'error' && $site['last_message'] !== '' ) : ?>
 						<br><span style="font-weight:normal"><?php echo esc_html( $site['last_message'] ); ?></span>
 					<?php endif; ?>
+				</td>
+			</tr>
+			<tr>
+				<th scope="row"><?php esc_html_e( 'Last check', 'paperplane-mail-test' ); ?></th>
+				<td>
+					<?php echo $site['last_check'] ? esc_html( wp_date( 'Y/m/d H:i', $site['last_check'] ) ) : '—'; ?>
+					<form method="post" style="display:inline;margin-left:12px">
+						<?php wp_nonce_field( 'pp_mm_check' ); ?>
+						<input type="hidden" name="pp_mm_action" value="check_now">
+						<input type="hidden" name="pp_mm_site_id" value="<?php echo (int) $site_id; ?>">
+						<input type="hidden" name="pp_mm_return" value="history">
+						<button type="submit" class="button button-secondary" aria-label="<?php echo esc_attr( __( 'Check now', 'paperplane-mail-test' ) . ': ' . $name ); ?>"><?php esc_html_e( 'Check now', 'paperplane-mail-test' ); ?></button>
+					</form>
+					<p class="description"><?php esc_html_e( 'The test email goes to the alert recipients.', 'paperplane-mail-test' ); ?></p>
 				</td>
 			</tr>
 		</table>
@@ -1772,6 +1800,7 @@ function pp_mm_render_settings_page() {
 	?>
 	<div class="wrap">
 		<h1><?php esc_html_e( 'Mail Monitor — Settings', 'paperplane-mail-test' ); ?></h1>
+		<hr class="wp-header-end">
 
 		<?php if ( $import_error_key && isset( $import_errors[ $import_error_key ] ) ) : ?>
 			<div class="notice notice-error is-dismissible"><p><?php echo esc_html( $import_errors[ $import_error_key ] ); ?></p></div>

@@ -537,3 +537,6 @@ msgstr "Stato attuale"
 
 msgid "✖ KO since %1$s (%2$s)"
 msgstr "✖ KO dal %1$s (%2$s)"
+
+msgid "The test email goes to the alert recipients."
+msgstr "La mail di test va ai destinatari degli alert."
