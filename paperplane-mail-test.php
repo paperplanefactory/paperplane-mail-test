@@ -1713,8 +1713,8 @@ function pp_mm_render_history_page( int $site_id ) {
 			<tr>
 				<th scope="row"><?php esc_html_e( 'Last check', 'paperplane-mail-test' ); ?></th>
 				<td>
-					<?php echo $site['last_check'] ? esc_html( wp_date( 'Y/m/d H:i', $site['last_check'] ) ) : '—'; ?>
-					<form method="post" style="display:inline;margin-left:12px">
+					<p style="margin-top:0"><?php echo $site['last_check'] ? esc_html( wp_date( 'Y/m/d H:i', $site['last_check'] ) ) : '—'; ?></p>
+					<form method="post">
 						<?php wp_nonce_field( 'pp_mm_check' ); ?>
 						<input type="hidden" name="pp_mm_action" value="check_now">
 						<input type="hidden" name="pp_mm_site_id" value="<?php echo (int) $site_id; ?>">
