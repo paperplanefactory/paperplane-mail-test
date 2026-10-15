@@ -25,7 +25,8 @@ Each client site must have the PaperPlane Mail Test Child plugin installed and c
 * Cron ogni 5 minuti con tempo massimo per giro (circa un minuto): con molti siti il carico si distribuisce su più giri; i siti più in ritardo vengono controllati per primi. Soglie: orario 55 minuti, giornaliero 23 ore e 55 minuti. Lock atomico contro giri sovrapposti
 * Avviso nella lista siti se i check non vengono eseguiti da più di 15 minuti; README con le istruzioni per il cron di sistema
 * Lista siti: ricerca per nome o URL, filtri per stato con conteggi, ordinamento per nome, ultimo check o stato, pagine da 50 siti
-* Storico dei check per sito (90 giorni): ultimi check con causa, numero di check e KO e percentuale di successo negli ultimi 30 giorni
+* Storico dei check per sito (90 giorni): riepilogo del sito (nome, URL, frequenza, stato attuale), pulsante "Controlla ora", ultimi check con causa, numero di check e KO e percentuale di successo negli ultimi 30 giorni
+* Lista, Storico e Impostazioni: marcatore standard `wp-header-end` dopo il titolo, così tutti gli avvisi compaiono subito sotto il titolo
 * La disinstallazione rimuove anche le tabelle
 
 = 1.1.12 =
