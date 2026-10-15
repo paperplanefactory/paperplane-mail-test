@@ -1660,7 +1660,43 @@ function pp_mm_render_history_page( int $site_id ) {
 	?>
 		<h1><?php echo esc_html( sprintf( __( 'History: %s', 'paperplane-mail-test' ), $name ) ); ?></h1>
 		<p><a href="<?php echo esc_url( $page_url ); ?>">&larr; <?php esc_html_e( 'Back to the sites', 'paperplane-mail-test' ); ?></a></p>
-		<p><?php echo esc_html( $site['url'] ); ?></p>
+
+		<?php
+		$status = $site['last_status'];
+		$color  = $status === 'ok' ? '#007017' : ( $status === 'error' ? '#b32d2e' : '#646970' );
+		if ( $status === 'ok' ) {
+			$status_text = '✔ OK';
+		} elseif ( $status === 'error' ) {
+			$status_text = $site['error_since']
+				? sprintf( __( '✖ KO since %1$s (%2$s)', 'paperplane-mail-test' ), wp_date( 'Y/m/d H:i', $site['error_since'] ), human_time_diff( $site['error_since'], time() ) )
+				: '✖ KO';
+		} else {
+			$status_text = __( 'Never checked', 'paperplane-mail-test' );
+		}
+		?>
+		<table class="form-table" role="presentation" style="max-width:1000px">
+			<tr>
+				<th scope="row"><?php esc_html_e( 'Name', 'paperplane-mail-test' ); ?></th>
+				<td><?php echo $site['label'] !== '' ? esc_html( $site['label'] ) : '<span style="color:#646970">' . esc_html__( '(no name)', 'paperplane-mail-test' ) . '</span>'; ?></td>
+			</tr>
+			<tr>
+				<th scope="row"><?php esc_html_e( 'URL', 'paperplane-mail-test' ); ?></th>
+				<td><a href="<?php echo esc_url( $site['url'] ); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html( $site['url'] ); ?><span class="screen-reader-text"> <?php esc_html_e( '(opens in a new tab)', 'paperplane-mail-test' ); ?></span></a></td>
+			</tr>
+			<tr>
+				<th scope="row"><?php esc_html_e( 'Frequency', 'paperplane-mail-test' ); ?></th>
+				<td><?php echo $site['frequency'] === 'hourly' ? esc_html__( 'Every hour', 'paperplane-mail-test' ) : esc_html__( 'Every day', 'paperplane-mail-test' ); ?></td>
+			</tr>
+			<tr>
+				<th scope="row"><?php esc_html_e( 'Current status', 'paperplane-mail-test' ); ?></th>
+				<td style="font-weight:bold;color:<?php echo $color; ?>">
+					<?php echo esc_html( $status_text ); ?>
+					<?php if ( $status === 'error' && $site['last_message'] !== '' ) : ?>
+						<br><span style="font-weight:normal"><?php echo esc_html( $site['last_message'] ); ?></span>
+					<?php endif; ?>
+				</td>
+			</tr>
+		</table>
 
 		<h2><?php esc_html_e( 'Last 30 days', 'paperplane-mail-test' ); ?></h2>
 		<?php if ( $history['total'] ) : ?>

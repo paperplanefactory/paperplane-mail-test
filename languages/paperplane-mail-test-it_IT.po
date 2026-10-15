@@ -519,3 +519,21 @@ msgid "%s site"
 msgid_plural "%s sites"
 msgstr[0] "%s sito"
 msgstr[1] "%s siti"
+
+msgid "Name"
+msgstr "Nome"
+
+msgid "(no name)"
+msgstr "(nessun nome)"
+
+msgid "URL"
+msgstr "URL"
+
+msgid "(opens in a new tab)"
+msgstr "(si apre in una nuova scheda)"
+
+msgid "Current status"
+msgstr "Stato attuale"
+
+msgid "✖ KO since %1$s (%2$s)"
+msgstr "✖ KO dal %1$s (%2$s)"
