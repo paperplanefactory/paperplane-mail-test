@@ -2,7 +2,7 @@
 /**
  * Plugin Name: PaperPlane Mail Test
  * Description: Monitors mail function on client sites. Requires PaperPlane Mail Test Child installed on each site.
- * Version: 1.3.0
+ * Version: 1.3.1
  * Requires at least: 5.9
  * Requires PHP: 8.0
  * Author: Paper Plane Factory
@@ -875,15 +875,28 @@ function pp_mm_send_alert( array $site, string $message, bool $client_notified =
 	if ( empty( $recipients ) ) {
 		return;
 	}
-	$label   = $site['label'] ?: $site['url'];
-	$subject = sprintf( __( '[PaperPlane Mail Test issue] Mail KO: %s', 'paperplane-mail-test' ), $label );
-	$body    = '<p>' . sprintf( __( 'The mail function test on %s failed.', 'paperplane-mail-test' ), '<strong>' . esc_html( $label ) . '</strong>' ) . '</p>'
-		. '<p><strong>' . __( 'URL:', 'paperplane-mail-test' ) . '</strong> ' . esc_html( $site['url'] ) . '</p>'
-		. '<p><strong>' . __( 'Error:', 'paperplane-mail-test' ) . '</strong> ' . esc_html( $message ) . '</p>'
-		. ( ! empty( $site['last_detail'] ) ? '<p><strong>' . __( 'Details:', 'paperplane-mail-test' ) . '</strong> ' . esc_html( $site['last_detail'] ) . '</p>' : '' )
-		. '<p><strong>' . __( 'Date:', 'paperplane-mail-test' ) . '</strong> ' . date_i18n( 'Y/m/d H:i' ) . '</p>'
-		. ( $client_notified ? '<p>' . esc_html( sprintf( __( 'The client has been notified too (%s).', 'paperplane-mail-test' ), implode( ', ', pp_mm_parse_client_emails( $site['client_emails'] ?? '' )['valid'] ) ) ) . '</p>' : '' );
-	wp_mail( $recipients, $subject, $body, array( 'Content-Type: text/html; charset=UTF-8' ) );
+	$label = $site['label'] ?: $site['url'];
+	$rows  = array(
+		__( 'URL', 'paperplane-mail-test' )   => esc_html( $site['url'] ),
+		__( 'Error', 'paperplane-mail-test' ) => esc_html( $message ),
+	);
+	if ( ! empty( $site['last_detail'] ) ) {
+		$rows[ __( 'Details', 'paperplane-mail-test' ) ] = esc_html( $site['last_detail'] );
+	}
+	$rows[ __( 'Date', 'paperplane-mail-test' ) ] = esc_html( wp_date( 'Y/m/d H:i' ) );
+	if ( $client_notified ) {
+		$rows[ __( 'Client notified', 'paperplane-mail-test' ) ] = esc_html( implode( ', ', pp_mm_parse_client_emails( $site['client_emails'] ?? '' )['valid'] ) );
+	}
+	pp_mm_send_mail(
+		$recipients,
+		sprintf( __( '[PaperPlane Mail Test issue] Mail KO: %s', 'paperplane-mail-test' ), $label ),
+		array(
+			'intro'  => '<p>' . sprintf( esc_html__( 'The mail function test on %s failed.', 'paperplane-mail-test' ), '<strong>' . esc_html( $label ) . '</strong>' ) . '</p>',
+			'rows'   => $rows,
+			'footer' => pp_mm_history_link( $site ),
+		),
+		array( 'type' => 'alert', 'audience' => 'agency', 'site' => $site )
+	);
 }
 
 /**
@@ -894,14 +907,70 @@ function pp_mm_send_recovery( array $site ) {
 	if ( empty( $recipients ) ) {
 		return;
 	}
-	$label   = $site['label'] ?: $site['url'];
-	$since   = (int) ( $site['error_since'] ?? 0 );
-	$subject = sprintf( __( '[PaperPlane Mail Test resolved] Mail OK: %s', 'paperplane-mail-test' ), $label );
-	$body    = '<p>' . sprintf( __( 'The mail function on %s works again.', 'paperplane-mail-test' ), '<strong>' . esc_html( $label ) . '</strong>' ) . '</p>'
-		. '<p><strong>' . __( 'URL:', 'paperplane-mail-test' ) . '</strong> ' . esc_html( $site['url'] ) . '</p>'
-		. ( $since ? '<p><strong>' . __( 'KO since:', 'paperplane-mail-test' ) . '</strong> ' . wp_date( 'Y/m/d H:i', $since ) . ' (' . human_time_diff( $since, time() ) . ')</p>' : '' )
-		. '<p><strong>' . __( 'Date:', 'paperplane-mail-test' ) . '</strong> ' . date_i18n( 'Y/m/d H:i' ) . '</p>';
-	wp_mail( $recipients, $subject, $body, array( 'Content-Type: text/html; charset=UTF-8' ) );
+	$label = $site['label'] ?: $site['url'];
+	$since = (int) ( $site['error_since'] ?? 0 );
+	$rows  = array( __( 'URL', 'paperplane-mail-test' ) => esc_html( $site['url'] ) );
+	if ( $since ) {
+		$rows[ __( 'KO since', 'paperplane-mail-test' ) ] = esc_html( wp_date( 'Y/m/d H:i', $since ) . ' (' . human_time_diff( $since, time() ) . ')' );
+	}
+	$rows[ __( 'Date', 'paperplane-mail-test' ) ] = esc_html( wp_date( 'Y/m/d H:i' ) );
+	pp_mm_send_mail(
+		$recipients,
+		sprintf( __( '[PaperPlane Mail Test resolved] Mail OK: %s', 'paperplane-mail-test' ), $label ),
+		array(
+			'intro'  => '<p>' . sprintf( esc_html__( 'The mail function on %s works again.', 'paperplane-mail-test' ), '<strong>' . esc_html( $label ) . '</strong>' ) . '</p>',
+			'rows'   => $rows,
+			'footer' => pp_mm_history_link( $site ),
+		),
+		array( 'type' => 'recovery', 'audience' => 'agency', 'site' => $site )
+	);
+}
+
+function pp_mm_history_link( array $site ): string {
+	$url = add_query_arg( array( 'page' => 'pp-mail-monitor', 'view' => 'history', 'site' => (int) ( $site['id'] ?? 0 ) ), admin_url( 'admin.php' ) );
+	return '<a href="' . esc_url( $url ) . '">' . esc_html__( 'Open the history of the site', 'paperplane-mail-test' ) . '</a>';
+}
+
+// ─── Composizione e invio delle mail ──────────────────────────────────────────
+
+/**
+ * HTML di una mail del plugin, composto dalle sue parti:
+ * - locale    lingua della mail (es. it_IT, en_US)
+ * - title     titolo (testo, facoltativo)
+ * - intro     introduzione (HTML, uno o più paragrafi)
+ * - rows      righe "etichetta => valore" (etichetta in testo; valore HTML già sicuro)
+ * - content   blocco aggiuntivo (HTML, es. la tabella del report settimanale)
+ * - footer    chiusura (HTML, es. link o invito a rispondere)
+ * - signature firma (testo, facoltativa)
+ *
+ * Il filtro pp_mm_email_html permette di sostituire l'HTML con un template grafico (es. un mu-plugin
+ * del sito della dashboard). Riceve l'HTML predefinito, le parti e il contesto: type (alert, recovery,
+ * weekly, client_alert, client_recovery), audience (agency o client) e site (senza la chiave segreta).
+ */
+function pp_mm_email_html( array $parts, array $context ): string {
+	$parts += array( 'locale' => determine_locale(), 'title' => '', 'intro' => '', 'rows' => array(), 'content' => '', 'footer' => '', 'signature' => '' );
+	$html   = '<div style="font-family:sans-serif;max-width:700px;color:#1d2327">'
+		. ( $parts['title'] !== '' ? '<h2>' . esc_html( $parts['title'] ) . '</h2>' : '' )
+		. $parts['intro'];
+	foreach ( $parts['rows'] as $label => $value ) {
+		$html .= '<p><strong>' . esc_html( $label ) . ':</strong> ' . $value . '</p>';
+	}
+	$html .= $parts['content']
+		. ( $parts['footer'] !== '' ? '<p>' . $parts['footer'] . '</p>' : '' )
+		. ( $parts['signature'] !== '' ? '<p>' . esc_html( $parts['signature'] ) . '</p>' : '' )
+		. '</div>';
+
+	if ( isset( $context['site'] ) && is_array( $context['site'] ) ) {
+		unset( $context['site']['secret'] );
+	}
+	$filtered = apply_filters( 'pp_mm_email_html', $html, $parts, $context );
+	return is_string( $filtered ) && trim( $filtered ) !== '' ? $filtered : $html;
+}
+
+/** Compone (vedi pp_mm_email_html()) e invia una mail HTML. */
+function pp_mm_send_mail( array $recipients, string $subject, array $parts, array $context, array $headers = array() ): bool {
+	$body = pp_mm_email_html( $parts, $context );
+	return (bool) wp_mail( $recipients, $subject, $body, array_merge( array( 'Content-Type: text/html; charset=UTF-8' ), $headers ) );
 }
 
 // ─── Avvisi al cliente ────────────────────────────────────────────────────────
@@ -961,7 +1030,7 @@ function pp_mm_client_detail( string $detail ): string {
  * Invia una mail al cliente nella lingua del sito. Restituisce true se è stata inviata.
  * $build riceve il nome del sito e restituisce array( oggetto, corpo HTML ) già tradotti.
  */
-function pp_mm_send_client_mail( array $site, callable $build ): bool {
+function pp_mm_send_client_mail( array $site, string $type, callable $build ): bool {
 	$recipients = pp_mm_parse_client_emails( $site['client_emails'] ?? '' )['valid'];
 	$reply_to   = pp_mm_client_reply_to();
 	if ( empty( $recipients ) || $reply_to === '' ) {
@@ -976,10 +1045,16 @@ function pp_mm_send_client_mail( array $site, callable $build ): bool {
 	if ( $swapped ) {
 		pp_mm_load_translations( $locale );
 	}
+	// La mail viene composta con la lingua del cliente attiva: anche un template (filtro pp_mm_email_html)
+	// può usare le traduzioni.
 	try {
-		[ $subject, $body ] = $build( pp_mm_client_site_name( $site ) );
-		$body .= '<p>' . esc_html__( 'For any questions, just reply to this email.', 'paperplane-mail-test' ) . '</p>'
-			. '<p>' . esc_html( wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES ) ) . '</p>';
+		[ $subject, $parts ] = $build( pp_mm_client_site_name( $site ) );
+		$parts += array(
+			'locale'    => $locale,
+			'footer'    => esc_html__( 'For any questions, just reply to this email.', 'paperplane-mail-test' ),
+			'signature' => wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES ),
+		);
+		$body = pp_mm_email_html( $parts, array( 'type' => $type, 'audience' => 'client', 'site' => $site ) );
 	} finally {
 		if ( $swapped ) {
 			pp_mm_load_translations( $site_lang );
@@ -1011,7 +1086,7 @@ function pp_mm_client_date( int $timestamp ): string {
 function pp_mm_send_client_alert( array $site, array $result ): bool {
 	$kind   = $result['kind'] ?? '';
 	$detail = pp_mm_client_detail( (string) ( $result['client_detail'] ?? '' ) );
-	return pp_mm_send_client_mail( $site, function ( string $name ) use ( $site, $kind, $detail ) {
+	return pp_mm_send_client_mail( $site, 'client_alert', function ( string $name ) use ( $site, $kind, $detail ) {
 		if ( $kind === 'mail' ) {
 			$subject = sprintf( __( 'Problem sending emails from %s', 'paperplane-mail-test' ), $name );
 			$intro   = __( 'We have detected a problem on the website %s: it cannot send emails, so messages from its forms (for example contact requests) may not be delivered.', 'paperplane-mail-test' );
@@ -1020,24 +1095,32 @@ function pp_mm_send_client_alert( array $site, array $result ): bool {
 			$intro   = __( 'We have detected a problem on the website %s: it is not reachable or responds with an error, so its pages and forms may not work.', 'paperplane-mail-test' );
 		}
 		$since = (int) ( $site['error_since'] ?? 0 ) ?: time();
-		$body  = '<p>' . sprintf( esc_html( $intro ), '<strong>' . esc_html( $name ) . '</strong>' ) . '</p>'
-			. '<p>' . esc_html__( 'We have already been notified and are working on it.', 'paperplane-mail-test' )
-			. ( ! empty( $site['client_recovery'] ) ? ' ' . esc_html__( 'We will send you another email as soon as the problem is solved.', 'paperplane-mail-test' ) : '' ) . '</p>'
-			. '<p><strong>' . esc_html__( 'Detected on:', 'paperplane-mail-test' ) . '</strong> ' . esc_html( pp_mm_client_date( $since ) ) . '</p>'
-			. ( $detail !== '' ? '<p><strong>' . esc_html__( 'Technical details:', 'paperplane-mail-test' ) . '</strong> ' . esc_html( $detail ) . '</p>' : '' );
-		return array( $subject, $body );
+		$rows  = array( __( 'Detected on', 'paperplane-mail-test' ) => esc_html( pp_mm_client_date( $since ) ) );
+		if ( $detail !== '' ) {
+			$rows[ __( 'Technical details', 'paperplane-mail-test' ) ] = esc_html( $detail );
+		}
+		return array( $subject, array(
+			'intro' => '<p>' . sprintf( esc_html( $intro ), '<strong>' . esc_html( $name ) . '</strong>' ) . '</p>'
+				. '<p>' . esc_html__( 'We have already been notified and are working on it.', 'paperplane-mail-test' )
+				. ( ! empty( $site['client_recovery'] ) ? ' ' . esc_html__( 'We will send you another email as soon as the problem is solved.', 'paperplane-mail-test' ) : '' ) . '</p>',
+			'rows'  => $rows,
+		) );
 	} );
 }
 
 function pp_mm_send_client_recovery( array $site, int $since ): bool {
 	$kind = $site['client_alert'] ?? '';
-	return pp_mm_send_client_mail( $site, function ( string $name ) use ( $kind, $since ) {
+	return pp_mm_send_client_mail( $site, 'client_recovery', function ( string $name ) use ( $kind, $since ) {
 		$subject = $kind === 'mail'
 			? sprintf( __( 'Emails from %s are working again', 'paperplane-mail-test' ), $name )
 			: sprintf( __( 'The website %s is working again', 'paperplane-mail-test' ), $name );
-		$body = '<p>' . sprintf( esc_html__( 'The problem on the website %s has been solved: everything works normally again.', 'paperplane-mail-test' ), '<strong>' . esc_html( $name ) . '</strong>' ) . '</p>'
-			. ( $since ? '<p>' . esc_html( sprintf( __( 'Duration of the problem: from %1$s to %2$s.', 'paperplane-mail-test' ), pp_mm_client_date( $since ), pp_mm_client_date( time() ) ) ) . '</p>' : '' );
-		return array( $subject, $body );
+		return array( $subject, array(
+			'intro' => '<p>' . sprintf( esc_html__( 'The problem on the website %s has been solved: everything works normally again.', 'paperplane-mail-test' ), '<strong>' . esc_html( $name ) . '</strong>' ) . '</p>',
+			'rows'  => $since ? array(
+				/* translators: %1$s start date, %2$s end date */
+				__( 'Duration of the problem', 'paperplane-mail-test' ) => esc_html( sprintf( __( 'from %1$s to %2$s', 'paperplane-mail-test' ), pp_mm_client_date( $since ), pp_mm_client_date( time() ) ) ),
+			) : array(),
+		) );
 	} );
 }
 
@@ -1127,10 +1210,7 @@ function pp_mm_send_weekly_report() {
 		wp_date( 'Y/m/d' )
 	);
 
-	$body = '<div style="font-family:sans-serif;max-width:700px;color:#1d2327">'
-		. '<h2>' . esc_html__( 'Weekly Mail Monitor Report', 'paperplane-mail-test' ) . '</h2>'
-		. '<p>' . esc_html( $summary ) . '</p>'
-		. '<table style="width:100%;border-collapse:collapse;border:1px solid #eee">'
+	$table = '<table style="width:100%;border-collapse:collapse;border:1px solid #eee">'
 		. '<thead><tr style="background:#f6f7f7">'
 		. '<th style="padding:8px 12px;text-align:left">' . esc_html__( 'Site', 'paperplane-mail-test' ) . '</th>'
 		. '<th style="padding:8px 12px;text-align:left">' . esc_html__( 'Frequency', 'paperplane-mail-test' ) . '</th>'
@@ -1138,11 +1218,19 @@ function pp_mm_send_weekly_report() {
 		. '<th style="padding:8px 12px;text-align:left">' . esc_html__( 'Status', 'paperplane-mail-test' ) . '</th>'
 		. '</tr></thead>'
 		. '<tbody>' . $rows . '</tbody>'
-		. '</table>'
-		. '<p style="color:#646970;font-size:.85em;margin-top:16px">' . esc_html( wp_date( 'Y/m/d H:i' ) ) . '</p>'
-		. '</div>';
+		. '</table>';
 
-	wp_mail( $recipients, $subject, $body, array( 'Content-Type: text/html; charset=UTF-8' ) );
+	pp_mm_send_mail(
+		$recipients,
+		$subject,
+		array(
+			'title'   => __( 'Weekly Mail Monitor Report', 'paperplane-mail-test' ),
+			'intro'   => '<p>' . esc_html( $summary ) . '</p>',
+			'content' => $table,
+			'footer'  => '<span style="color:#646970;font-size:.85em">' . esc_html( wp_date( 'Y/m/d H:i' ) ) . '</span>',
+		),
+		array( 'type' => 'weekly', 'audience' => 'agency', 'site' => null )
+	);
 }
 
 // ─── Admin menu ───────────────────────────────────────────────────────────────

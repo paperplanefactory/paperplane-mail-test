@@ -167,6 +167,20 @@ For each site you can enter up to 5 **client addresses** (Add site, or **Edit**)
 - **Reply-To** (Settings → Client notifications) is required: while it is empty, no email is sent to clients and the site list shows a warning.
 - The agency alert says whether the client has been notified too.
 
+### Email template (filter `pp_mm_email_html`)
+
+All emails (alerts, recoveries, weekly report, client notifications) are built from parts and pass through the `pp_mm_email_html` filter, so a must-use plugin on the dashboard site can wrap them in a branded template:
+
+```php
+add_filter( 'pp_mm_email_html', function ( string $html, array $parts, array $context ) {
+	// $parts:   locale, title, intro (HTML), rows (label => HTML value), content (HTML), footer (HTML), signature
+	// $context: type (alert, recovery, weekly, client_alert, client_recovery), audience (agency|client), site (without the secret key)
+	return my_branded_email( $parts );
+}, 10, 3 );
+```
+
+Client emails are composed with the client's language active, so the template can use translations too. Returning an empty string keeps the default HTML.
+
 ### When a site is down or returns an error
 
 - **Not reachable** (timeout, connection refused, SSL error) and temporary errors (HTTP 502, 503, 504) are retried once after 5 seconds before the site is marked KO, so a short network glitch does not trigger an alert.

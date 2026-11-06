@@ -3,7 +3,7 @@ Contributors: paperplanefactory
 Requires at least: 5.9
 Tested up to: 7.1
 Requires PHP: 8.0
-Stable tag: 1.3.0
+Stable tag: 1.3.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -16,6 +16,10 @@ PaperPlane Mail Test monitors the mail function on your client sites from a cent
 Each client site must have the PaperPlane Mail Test Child plugin installed and configured.
 
 == Changelog ==
+
+= 1.3.1 =
+* Tutte le mail (alert, ripristini, report settimanale, avvisi al cliente) sono composte da parti (introduzione, righe, contenuto, chiusura) e passano dal nuovo filtro `pp_mm_email_html`: un mu-plugin del sito della dashboard può vestirle con un template grafico, anche nella lingua del cliente
+* Alert e ripristini all'agenzia: link "Apri lo storico del sito"; "Cliente avvisato" come riga dei dati
 
 = 1.3.0 =
 * Avvisi al cliente: per ogni sito si possono indicare fino a 5 indirizzi del cliente, la lingua (italiano o inglese) e se inviare anche il ripristino (attivo di default). Il cliente riceve una mail separata da quella dell'agenzia, con un testo per lui e il dettaglio tecnico dell'errore, solo quando il sito non invia email o non è raggiungibile (dominio che non risolve, timeout, errori 5xx); i problemi del monitoraggio (chiave, REST API bloccata, plugin child) restano solo all'agenzia. Una mail per episodio di KO, solo dai check automatici; il ripristino parte da qualunque check riuscito
