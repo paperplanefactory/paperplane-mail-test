@@ -2,7 +2,7 @@
 /**
  * Plugin Name: PaperPlane Mail Test
  * Description: Monitors mail function on client sites. Requires PaperPlane Mail Test Child installed on each site.
- * Version: 1.2.0
+ * Version: 1.3.0
  * Requires at least: 5.9
  * Requires PHP: 8.0
  * Author: Paper Plane Factory
@@ -39,6 +39,8 @@ define( 'PP_MM_OPTION_WEEKLY_DAY',     'pp_mm_weekly_day' );
 define( 'PP_MM_OPTION_WEEKLY_HOUR',    'pp_mm_weekly_hour' );
 define( 'PP_MM_OPTION_WEEKLY_LAST',    'pp_mm_weekly_last_sent' );
 define( 'PP_MM_OPTION_SILENT_TEST',   'pp_mm_silent_test_email' );
+define( 'PP_MM_OPTION_CLIENT_REPLY_TO', 'pp_mm_client_reply_to' );
+define( 'PP_MM_CLIENT_MAX_EMAILS',     5 );
 
 // ─── Cifratura chiavi segrete ─────────────────────────────────────────────────
 
@@ -94,7 +96,7 @@ function pp_mm_decrypt( string $ciphertext ): string {
 // Tutte le query usano $wpdb->prepare() / insert() / update() / delete(): nessun valore
 // arriva nell'SQL senza escaping, e nomi di tabelle e colonne non dipendono mai dall'input.
 
-define( 'PP_MM_DB_VERSION', '1' );
+define( 'PP_MM_DB_VERSION', '2' ); // 2: colonne per gli avvisi al cliente (1.3.0)
 define( 'PP_MM_OPTION_DB_VERSION', 'pp_mm_db_version' );
 define( 'PP_MM_HISTORY_DAYS', 90 );
 
@@ -127,6 +129,10 @@ function pp_mm_install_tables(): void {
 		last_check_token varchar(64) NOT NULL DEFAULT '',
 		error_since bigint(20) unsigned NOT NULL DEFAULT 0,
 		created_at bigint(20) unsigned NOT NULL DEFAULT 0,
+		client_emails text NOT NULL,
+		client_locale varchar(10) NOT NULL DEFAULT 'it_IT',
+		client_recovery tinyint(1) unsigned NOT NULL DEFAULT 1,
+		client_alert varchar(10) NOT NULL DEFAULT '',
 		PRIMARY KEY  (id),
 		KEY last_check (last_check),
 		KEY last_status (last_status)
@@ -237,12 +243,16 @@ function pp_mm_site_columns(): array {
 		'last_check_token' => '%s',
 		'error_since'      => '%d',
 		'created_at'       => '%d',
+		'client_emails'    => '%s',
+		'client_locale'    => '%s',
+		'client_recovery'  => '%d',
+		'client_alert'     => '%s',
 	);
 }
 
 function pp_mm_row_to_site( $row ): array {
 	$site = (array) $row;
-	foreach ( array( 'id', 'last_check', 'error_since', 'created_at' ) as $key ) {
+	foreach ( array( 'id', 'last_check', 'error_since', 'created_at', 'client_recovery' ) as $key ) {
 		$site[ $key ] = (int) ( $site[ $key ] ?? 0 );
 	}
 	return $site;
@@ -260,9 +270,11 @@ function pp_mm_insert_site( array $site ): int {
 	$defaults = array(
 		'label' => '', 'url' => '', 'secret' => '', 'frequency' => 'daily', 'last_check' => 0, 'last_status' => '',
 		'last_message' => '', 'last_detail' => '', 'last_check_token' => '', 'error_since' => 0, 'created_at' => time(),
+		'client_emails' => '', 'client_locale' => 'it_IT', 'client_recovery' => 1, 'client_alert' => '',
 	);
 	$data = array_intersect_key( array_merge( $defaults, $site ), $defaults );
-	$data['frequency'] = $data['frequency'] === 'hourly' ? 'hourly' : 'daily';
+	$data['frequency']     = $data['frequency'] === 'hourly' ? 'hourly' : 'daily';
+	$data['client_locale'] = pp_mm_sanitize_client_locale( (string) $data['client_locale'] );
 	$columns = pp_mm_site_columns();
 	$formats = array();
 	foreach ( array_keys( $data ) as $key ) {
@@ -355,6 +367,12 @@ function pp_mm_query_sites( array $args ): array {
 	return array( 'items' => array_map( 'pp_mm_row_to_site', (array) $rows ), 'total' => $total );
 }
 
+/** Numero di siti con indirizzi del cliente (per l'avviso se manca il Reply-To). */
+function pp_mm_count_sites_with_clients(): int {
+	global $wpdb;
+	return (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . pp_mm_sites_table() . " WHERE client_emails <> ''" );
+}
+
 /** Numero di siti per stato: all, error, ok, pending. */
 function pp_mm_status_counts(): array {
 	global $wpdb;
@@ -373,14 +391,16 @@ function pp_mm_status_counts(): array {
  */
 function pp_mm_get_due_sites( int $now, int $limit ): array {
 	global $wpdb;
-	$hourly = 55 * MINUTE_IN_SECONDS;
-	$daily  = DAY_IN_SECONDS - 5 * MINUTE_IN_SECONDS;
+	$ko     = PP_MM_THRESHOLD_KO;
+	$hourly = PP_MM_THRESHOLD_HOURLY;
+	$daily  = PP_MM_THRESHOLD_DAILY;
+	$threshold_sql = "CASE WHEN last_status = 'error' THEN %d WHEN frequency = 'hourly' THEN %d ELSE %d END";
 	$rows   = $wpdb->get_results( $wpdb->prepare(
 		'SELECT * FROM ' . pp_mm_sites_table() . "
-		WHERE ( frequency = 'hourly' AND last_check <= %d ) OR ( frequency <> 'hourly' AND last_check <= %d )
-		ORDER BY last_check + IF( frequency = 'hourly', %d, %d ) ASC, id ASC
+		WHERE last_check + $threshold_sql <= %d
+		ORDER BY last_check + $threshold_sql ASC, id ASC
 		LIMIT %d",
-		$now - $hourly, $now - $daily, $hourly, $daily, $limit
+		$ko, $hourly, $daily, $now, $ko, $hourly, $daily, $limit
 	), ARRAY_A );
 	return array_map( 'pp_mm_row_to_site', (array) $rows );
 }
@@ -529,6 +549,12 @@ function pp_mm_remote_post_pinned( string $url, array $args, string $ip ) {
 define( 'PP_MM_CRON_SCHEDULE', 'pp_mm_every_5_minutes' );
 define( 'PP_MM_CRON_TIME_BUDGET', 50 );  // secondi per giro (un sito può aggiungerne fino a ~35)
 define( 'PP_MM_CRON_LOCK_TTL', 10 * MINUTE_IN_SECONDS );
+// Soglie dall'ultimo check (5 minuti di tolleranza sul giro del cron ogni 5 minuti):
+// sito in KO ogni 15 minuti, qualunque sia la frequenza, così il ripristino viene rilevato presto;
+// altrimenti ogni ora / ogni giorno.
+define( 'PP_MM_THRESHOLD_KO',     10 * MINUTE_IN_SECONDS );
+define( 'PP_MM_THRESHOLD_HOURLY', 55 * MINUTE_IN_SECONDS );
+define( 'PP_MM_THRESHOLD_DAILY',  DAY_IN_SECONDS - 5 * MINUTE_IN_SECONDS );
 
 add_filter( 'cron_schedules', function ( $schedules ) {
 	$schedules[ PP_MM_CRON_SCHEDULE ] = array(
@@ -592,12 +618,16 @@ function pp_mm_run_checks() {
 
 /**
  * Tempo minimo dall'ultimo check perché un sito sia di nuovo da controllare.
- * Il cron parte ogni 5 minuti: un sito orario viene controllato al primo giro dopo 55 minuti,
- * uno giornaliero dopo 23 ore e 55 minuti (cioè ogni ora / ogni giorno, con 5 minuti di tolleranza
- * per la durata dei check e i ritardi del cron). Le soglie coincidono con pp_mm_get_due_sites().
+ * Il cron parte ogni 5 minuti: un sito in KO viene ricontrollato al primo giro dopo 10 minuti (cioè ogni
+ * 15), un sito orario dopo 55 minuti, uno giornaliero dopo 23 ore e 55 minuti (cioè ogni ora / ogni giorno,
+ * con 5 minuti di tolleranza per la durata dei check e i ritardi del cron). Le soglie coincidono con
+ * pp_mm_get_due_sites().
  */
 function pp_mm_check_threshold( array $site ): int {
-	return ( $site['frequency'] ?? 'daily' ) === 'hourly' ? 55 * MINUTE_IN_SECONDS : DAY_IN_SECONDS - 5 * MINUTE_IN_SECONDS;
+	if ( ( $site['last_status'] ?? '' ) === 'error' ) {
+		return PP_MM_THRESHOLD_KO;
+	}
+	return ( $site['frequency'] ?? 'daily' ) === 'hourly' ? PP_MM_THRESHOLD_HOURLY : PP_MM_THRESHOLD_DAILY;
 }
 
 function pp_mm_is_due( array $site, int $now ): bool {
@@ -634,12 +664,33 @@ function pp_mm_apply_result( array $site, array $result, string $source = 'cron'
 	$site = array_merge( $site, $fields );
 	pp_mm_log_check( (int) $site['id'], $result, $source );
 
+	// Avviso al cliente: una volta per episodio di KO, al primo KO che lo riguarda (mail non inviata o sito
+	// irraggiungibile), solo dai check automatici (un "Controlla ora" fallito durante un intervento non lo avvisa).
+	// Il tipo di KO comunicato resta in client_alert fino al ritorno a OK, per la notifica di ripristino.
+	$client_notified = '';
+	if ( ! $result['success'] && $source === 'cron' && ( $site['client_alert'] ?? '' ) === '' && ( $result['kind'] ?? '' ) !== '' ) {
+		if ( pp_mm_send_client_alert( $site, $result ) ) {
+			$client_notified     = $result['kind'];
+			$site['client_alert'] = $client_notified;
+			pp_mm_update_site( (int) $site['id'], array( 'client_alert' => $client_notified ) );
+		}
+	}
+
 	if ( ! $result['success'] && $prev_status !== 'error' ) {
-		pp_mm_send_alert( $site, $fields['last_message'] );
+		pp_mm_send_alert( $site, $fields['last_message'], $client_notified !== '' );
 	} elseif ( $result['success'] && $prev_status === 'error' ) {
 		$site['error_since'] = $prev_since; // per "KO dal" nella notifica
 		pp_mm_send_recovery( $site );
 		$site['error_since'] = 0;
+	}
+
+	// Ripristino al cliente (se era stato avvisato del KO), da qualunque check riuscito.
+	if ( $result['success'] && ( $site['client_alert'] ?? '' ) !== '' ) {
+		if ( ! empty( $site['client_recovery'] ) ) {
+			pp_mm_send_client_recovery( $site, $prev_since );
+		}
+		$site['client_alert'] = '';
+		pp_mm_update_site( (int) $site['id'], array( 'client_alert' => '' ) );
 	}
 	return $site;
 }
@@ -681,15 +732,22 @@ function pp_mm_signed_body( string $secret, string $token, string $test_email ):
 function pp_mm_check_site( array $site, string $test_email = '' ): array {
 	$url    = trailingslashit( $site['url'] ) . 'wp-json/pp-mail-test/v1/check';
 	$token  = wp_generate_password( 16, false );
-	$result = function ( bool $success, string $message, string $detail = '' ) use ( $token ) {
-		return array( 'success' => $success, 'message' => $message, 'detail' => $detail, 'token' => $token );
+	// kind: tipo di KO che riguarda il cliente ('mail' = il sito non invia email, 'site' = sito irraggiungibile
+	// o in errore), '' per i problemi del monitoraggio (chiave, REST API bloccata, plugin child...).
+	// client_detail: dettaglio tecnico da mostrare al cliente.
+	$result = function ( bool $success, string $message, string $detail = '', string $kind = '', string $client_detail = '' ) use ( $token ) {
+		return array( 'success' => $success, 'message' => $message, 'detail' => $detail, 'token' => $token, 'kind' => $kind, 'client_detail' => $client_detail );
 	};
 
 	// Ri-valida l'URL al momento della richiesta (il DNS potrebbe essere cambiato dopo il salvataggio)
 	// e connette proprio all'IP validato.
 	$url_check = pp_mm_check_url( $site['url'] );
 	if ( $url_check['code'] !== '' ) {
-		return $result( false, pp_mm_url_error_message( $url_check['code'] ) );
+		$message = pp_mm_url_error_message( $url_check['code'] );
+		// Dominio che non risolve (es. scaduto): il sito non è raggiungibile anche per i visitatori.
+		return $url_check['code'] === 'dns'
+			? $result( false, $message, '', 'site', $message )
+			: $result( false, $message );
 	}
 
 	// Nessuna chiave (es. import senza chiavi): inutile chiamare il sito.
@@ -721,7 +779,7 @@ function pp_mm_check_site( array $site, string $test_email = '' ): array {
 	}
 
 	if ( is_wp_error( $response ) ) {
-		return $result( false, sprintf( __( 'Site not reachable: %s', 'paperplane-mail-test' ), $response->get_error_message() ) );
+		return $result( false, sprintf( __( 'Site not reachable: %s', 'paperplane-mail-test' ), $response->get_error_message() ), '', 'site', $response->get_error_message() );
 	}
 
 	$code = (int) wp_remote_retrieve_response_code( $response );
@@ -729,13 +787,21 @@ function pp_mm_check_site( array $site, string $test_email = '' ): array {
 	$json = json_decode( $raw, true );
 
 	if ( $code !== 200 ) {
-		return $result( false, pp_mm_describe_http_error( $code, $response, is_array( $json ) ? $json : array() ), pp_mm_response_detail( $response ) );
+		$detail = pp_mm_response_detail( $response );
+		// Errore del server (5xx): il sito è in errore anche per i visitatori.
+		if ( $code >= 500 ) {
+			return $result( false, pp_mm_describe_http_error( $code, $response, is_array( $json ) ? $json : array() ), $detail, 'site', trim( 'HTTP ' . $code . ( $detail !== '' ? ' · ' . $detail : '' ) ) );
+		}
+		return $result( false, pp_mm_describe_http_error( $code, $response, is_array( $json ) ? $json : array() ), $detail );
 	}
 	if ( ! is_array( $json ) ) {
 		return $result( false, __( 'Invalid response: HTTP 200 but not the expected data (cache plugin, maintenance page or PHP output).', 'paperplane-mail-test' ), pp_mm_response_detail( $response ) );
 	}
 	if ( empty( $json['success'] ) ) {
-		return $result( false, sprintf( __( 'wp_mail() failed on the client site: check its mail/SMTP configuration. (%s)', 'paperplane-mail-test' ), (string) ( $json['message'] ?? '' ) ) );
+		// Dal child 1.4.15 'error' contiene l'errore reale dell'invio (es. "SMTP Error: Could not authenticate.").
+		$error = is_string( $json['error'] ?? null ) && $json['error'] !== '' ? $json['error'] : (string) ( $json['message'] ?? '' );
+		$error = mb_substr( sanitize_text_field( $error ), 0, 300 );
+		return $result( false, sprintf( __( 'wp_mail() failed on the client site: check its mail/SMTP configuration. (%s)', 'paperplane-mail-test' ), $error ), '', 'mail', $error );
 	}
 	return $result( true, (string) ( $json['message'] ?? '' ) );
 }
@@ -746,7 +812,13 @@ function pp_mm_check_site( array $site, string $test_email = '' ): array {
 function pp_mm_describe_http_error( int $code, $response, array $json ): string {
 	$rest_code = (string) ( $json['code'] ?? '' );
 
-	if ( $rest_code === 'pp_mt_clock_skew' ) {
+	if ( $rest_code === 'pp_mt_unauthorized' ) {
+		$text = __( 'The secret key is wrong: copy it again from Tools → PaperPlane Mail Test on the client site and update it here with Edit.', 'paperplane-mail-test' );
+	} elseif ( $rest_code === 'pp_mt_not_configured' ) {
+		$text = __( 'The child plugin has no secret key yet: open Tools → PaperPlane Mail Test on the client site, copy the key and enter it here with Edit.', 'paperplane-mail-test' );
+	} elseif ( $rest_code === 'pp_mt_rate_limited' ) {
+		$text = __( 'Too many checks in a short time: the client site accepts up to 100 every 5 minutes. Wait a few minutes.', 'paperplane-mail-test' );
+	} elseif ( $rest_code === 'pp_mt_clock_skew' ) {
 		$text = __( 'The clocks of this server and the client site differ by more than 5 minutes: check the time (NTP) on both servers.', 'paperplane-mail-test' );
 	} elseif ( $rest_code === 'pp_mt_replay' ) {
 		$text = __( 'Request rejected as already received (replay protection). If it happens again, check the server clocks.', 'paperplane-mail-test' );
@@ -756,7 +828,9 @@ function pp_mm_describe_http_error( int $code, $response, array $json ): string 
 		$location = (string) wp_remote_retrieve_header( $response, 'location' );
 		$text     = sprintf( __( 'The site redirects to %s: update the site URL with Edit.', 'paperplane-mail-test' ), $location !== '' ? $location : '?' );
 	} elseif ( $code === 401 && $rest_code === 'rest_forbidden' ) {
-		$text = __( 'Authentication refused: wrong secret key, too many calls in a short time, or child plugin older than 1.4.11 (update it).', 'paperplane-mail-test' );
+		// Dal child 1.4.15 una chiave errata ha il codice pp_mt_unauthorized: rest_forbidden viene
+		// da chi blocca la REST API prima del child (tema o plugin), o da un child precedente.
+		$text = __( 'Authentication refused by the site, not by the child plugin: the theme or another plugin is blocking the REST API (see the details below). With a child older than 1.4.15 it can also be a wrong secret key or too many calls in a short time.', 'paperplane-mail-test' );
 	} elseif ( $code === 401 || $code === 403 ) {
 		$text = __( 'Access denied: a firewall or security plugin is blocking the REST API.', 'paperplane-mail-test' );
 	} elseif ( $code === 404 && $rest_code === 'rest_no_route' ) {
@@ -796,7 +870,7 @@ function pp_mm_alert_recipients(): array {
 	return $notify ? array_filter( array_map( 'sanitize_email', array_map( 'trim', explode( ',', $notify ) ) ) ) : array();
 }
 
-function pp_mm_send_alert( array $site, string $message ) {
+function pp_mm_send_alert( array $site, string $message, bool $client_notified = false ) {
 	$recipients = pp_mm_alert_recipients();
 	if ( empty( $recipients ) ) {
 		return;
@@ -807,7 +881,8 @@ function pp_mm_send_alert( array $site, string $message ) {
 		. '<p><strong>' . __( 'URL:', 'paperplane-mail-test' ) . '</strong> ' . esc_html( $site['url'] ) . '</p>'
 		. '<p><strong>' . __( 'Error:', 'paperplane-mail-test' ) . '</strong> ' . esc_html( $message ) . '</p>'
 		. ( ! empty( $site['last_detail'] ) ? '<p><strong>' . __( 'Details:', 'paperplane-mail-test' ) . '</strong> ' . esc_html( $site['last_detail'] ) . '</p>' : '' )
-		. '<p><strong>' . __( 'Date:', 'paperplane-mail-test' ) . '</strong> ' . date_i18n( 'Y/m/d H:i' ) . '</p>';
+		. '<p><strong>' . __( 'Date:', 'paperplane-mail-test' ) . '</strong> ' . date_i18n( 'Y/m/d H:i' ) . '</p>'
+		. ( $client_notified ? '<p>' . esc_html( sprintf( __( 'The client has been notified too (%s).', 'paperplane-mail-test' ), implode( ', ', pp_mm_parse_client_emails( $site['client_emails'] ?? '' )['valid'] ) ) ) . '</p>' : '' );
 	wp_mail( $recipients, $subject, $body, array( 'Content-Type: text/html; charset=UTF-8' ) );
 }
 
@@ -827,6 +902,143 @@ function pp_mm_send_recovery( array $site ) {
 		. ( $since ? '<p><strong>' . __( 'KO since:', 'paperplane-mail-test' ) . '</strong> ' . wp_date( 'Y/m/d H:i', $since ) . ' (' . human_time_diff( $since, time() ) . ')</p>' : '' )
 		. '<p><strong>' . __( 'Date:', 'paperplane-mail-test' ) . '</strong> ' . date_i18n( 'Y/m/d H:i' ) . '</p>';
 	wp_mail( $recipients, $subject, $body, array( 'Content-Type: text/html; charset=UTF-8' ) );
+}
+
+// ─── Avvisi al cliente ────────────────────────────────────────────────────────
+// Mail separate da quelle dell'agenzia, con un testo per il cliente nella lingua scelta per il sito.
+// Partono solo se è impostato il Reply-To (Impostazioni), così il cliente può rispondere a una persona.
+
+/** Lingue disponibili per le comunicazioni al cliente (locale WordPress => nome). */
+function pp_mm_client_locales(): array {
+	return array(
+		'it_IT' => 'Italiano',
+		'en_US' => 'English',
+	);
+}
+
+function pp_mm_sanitize_client_locale( string $locale ): string {
+	return isset( pp_mm_client_locales()[ $locale ] ) ? $locale : 'it_IT';
+}
+
+/**
+ * Indirizzi del cliente da un elenco separato da virgole: validi (al massimo PP_MM_CLIENT_MAX_EMAILS,
+ * senza duplicati) e numero di voci scartate (non valide o oltre il limite).
+ */
+function pp_mm_parse_client_emails( string $raw ): array {
+	$valid   = array();
+	$skipped = 0;
+	foreach ( array_filter( array_map( 'trim', explode( ',', $raw ) ), 'strlen' ) as $item ) {
+		$email = sanitize_email( $item );
+		if ( isset( $valid[ strtolower( $email ) ] ) ) {
+			continue; // Duplicato: resta la prima grafia.
+		}
+		if ( ! is_email( $email ) || count( $valid ) >= PP_MM_CLIENT_MAX_EMAILS ) {
+			$skipped++;
+			continue;
+		}
+		$valid[ strtolower( $email ) ] = $email;
+	}
+	return array( 'valid' => array_values( $valid ), 'skipped' => $skipped );
+}
+
+function pp_mm_client_reply_to(): string {
+	return (string) get_option( PP_MM_OPTION_CLIENT_REPLY_TO, '' );
+}
+
+/** Nome del sito per il cliente: il dominio (l'etichetta è un nome interno). */
+function pp_mm_client_site_name( array $site ): string {
+	$host = (string) wp_parse_url( $site['url'] ?? '', PHP_URL_HOST );
+	return $host !== '' ? preg_replace( '/^www\./i', '', $host ) : (string) ( $site['url'] ?? '' );
+}
+
+/** Dettaglio tecnico per il cliente, senza indirizzi email (es. l'indirizzo di test nell'errore SMTP). */
+function pp_mm_client_detail( string $detail ): string {
+	$detail = preg_replace( '/[^\s<>@]+@[^\s<>@]+\.[a-z]{2,}/i', '[…]', $detail );
+	return mb_strimwidth( trim( $detail ), 0, 300, '…' );
+}
+
+/**
+ * Invia una mail al cliente nella lingua del sito. Restituisce true se è stata inviata.
+ * $build riceve il nome del sito e restituisce array( oggetto, corpo HTML ) già tradotti.
+ */
+function pp_mm_send_client_mail( array $site, callable $build ): bool {
+	$recipients = pp_mm_parse_client_emails( $site['client_emails'] ?? '' )['valid'];
+	$reply_to   = pp_mm_client_reply_to();
+	if ( empty( $recipients ) || $reply_to === '' ) {
+		return false;
+	}
+	// Traduzioni del plugin nella lingua del cliente, caricate direttamente dai file del plugin:
+	// switch_to_locale() cambierebbe lingua solo se la traduzione di WordPress per quella lingua
+	// è installata sul sito della dashboard.
+	$locale    = pp_mm_sanitize_client_locale( (string) ( $site['client_locale'] ?? '' ) );
+	$site_lang = determine_locale();
+	$swapped   = $locale !== $site_lang;
+	if ( $swapped ) {
+		pp_mm_load_translations( $locale );
+	}
+	try {
+		[ $subject, $body ] = $build( pp_mm_client_site_name( $site ) );
+		$body .= '<p>' . esc_html__( 'For any questions, just reply to this email.', 'paperplane-mail-test' ) . '</p>'
+			. '<p>' . esc_html( wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES ) ) . '</p>';
+	} finally {
+		if ( $swapped ) {
+			pp_mm_load_translations( $site_lang );
+		}
+	}
+	return (bool) wp_mail( $recipients, $subject, $body, array( 'Content-Type: text/html; charset=UTF-8', 'Reply-To: ' . $reply_to ) );
+}
+
+/**
+ * Sostituisce le traduzioni del plugin con quelle di $locale, lette dai file del plugin.
+ * unload con false: WordPress non le ricarica da solo nella lingua del sito alla prima stringa
+ * (caricamento "just in time"); per l'inglese, o una lingua senza file, restano le stringhe del codice.
+ * load_textdomain() con il percorso del file: load_plugin_textdomain() dopo uno unload non le ricarica.
+ */
+function pp_mm_load_translations( string $locale ): void {
+	unload_textdomain( 'paperplane-mail-test', false );
+	$file = __DIR__ . '/languages/paperplane-mail-test-' . $locale . '.mo';
+	if ( $locale !== 'en_US' && ( is_readable( $file ) || is_readable( substr( $file, 0, -3 ) . '.l10n.php' ) ) ) {
+		load_textdomain( 'paperplane-mail-test', $file, $locale );
+	}
+}
+
+/** Data e ora nel formato della lingua del cliente (chiamata con la lingua già impostata). */
+function pp_mm_client_date( int $timestamp ): string {
+	/* translators: date format for client emails, see https://www.php.net/manual/en/datetime.format.php */
+	return wp_date( __( 'Y-m-d H:i', 'paperplane-mail-test' ), $timestamp );
+}
+
+function pp_mm_send_client_alert( array $site, array $result ): bool {
+	$kind   = $result['kind'] ?? '';
+	$detail = pp_mm_client_detail( (string) ( $result['client_detail'] ?? '' ) );
+	return pp_mm_send_client_mail( $site, function ( string $name ) use ( $site, $kind, $detail ) {
+		if ( $kind === 'mail' ) {
+			$subject = sprintf( __( 'Problem sending emails from %s', 'paperplane-mail-test' ), $name );
+			$intro   = __( 'We have detected a problem on the website %s: it cannot send emails, so messages from its forms (for example contact requests) may not be delivered.', 'paperplane-mail-test' );
+		} else {
+			$subject = sprintf( __( 'The website %s is not reachable', 'paperplane-mail-test' ), $name );
+			$intro   = __( 'We have detected a problem on the website %s: it is not reachable or responds with an error, so its pages and forms may not work.', 'paperplane-mail-test' );
+		}
+		$since = (int) ( $site['error_since'] ?? 0 ) ?: time();
+		$body  = '<p>' . sprintf( esc_html( $intro ), '<strong>' . esc_html( $name ) . '</strong>' ) . '</p>'
+			. '<p>' . esc_html__( 'We have already been notified and are working on it.', 'paperplane-mail-test' )
+			. ( ! empty( $site['client_recovery'] ) ? ' ' . esc_html__( 'We will send you another email as soon as the problem is solved.', 'paperplane-mail-test' ) : '' ) . '</p>'
+			. '<p><strong>' . esc_html__( 'Detected on:', 'paperplane-mail-test' ) . '</strong> ' . esc_html( pp_mm_client_date( $since ) ) . '</p>'
+			. ( $detail !== '' ? '<p><strong>' . esc_html__( 'Technical details:', 'paperplane-mail-test' ) . '</strong> ' . esc_html( $detail ) . '</p>' : '' );
+		return array( $subject, $body );
+	} );
+}
+
+function pp_mm_send_client_recovery( array $site, int $since ): bool {
+	$kind = $site['client_alert'] ?? '';
+	return pp_mm_send_client_mail( $site, function ( string $name ) use ( $kind, $since ) {
+		$subject = $kind === 'mail'
+			? sprintf( __( 'Emails from %s are working again', 'paperplane-mail-test' ), $name )
+			: sprintf( __( 'The website %s is working again', 'paperplane-mail-test' ), $name );
+		$body = '<p>' . sprintf( esc_html__( 'The problem on the website %s has been solved: everything works normally again.', 'paperplane-mail-test' ), '<strong>' . esc_html( $name ) . '</strong>' ) . '</p>'
+			. ( $since ? '<p>' . esc_html( sprintf( __( 'Duration of the problem: from %1$s to %2$s.', 'paperplane-mail-test' ), pp_mm_client_date( $since ), pp_mm_client_date( time() ) ) ) . '</p>' : '' );
+		return array( $subject, $body );
+	} );
 }
 
 // ─── Report settimanale ───────────────────────────────────────────────────────
@@ -974,6 +1186,12 @@ function pp_mm_register_settings() {
 	register_setting( 'pp_mm_settings', PP_MM_OPTION_SILENT_TEST, array(
 		'sanitize_callback' => 'sanitize_email',
 	) );
+	register_setting( 'pp_mm_settings', PP_MM_OPTION_CLIENT_REPLY_TO, array(
+		'sanitize_callback' => function ( $value ) {
+			$email = sanitize_email( (string) $value );
+			return is_email( $email ) ? $email : '';
+		},
+	) );
 	register_setting( 'pp_mm_settings', PP_MM_OPTION_WEEKLY_ENABLED, array(
 		'sanitize_callback' => 'absint',
 	) );
@@ -1034,6 +1252,20 @@ function pp_mm_manual_check( int $id ): ?array {
 	return pp_mm_apply_result( $site, pp_mm_check_site( $site, get_option( PP_MM_OPTION_NOTIFY, '' ) ), 'manual' );
 }
 
+/** Campi "Avvisi al cliente" dal form Aggiungi/Modifica. 'skipped': indirizzi scartati. */
+function pp_mm_client_fields_from_post(): array {
+	$raw    = is_string( $_POST['pp_mm_client_emails'] ?? null ) ? wp_unslash( $_POST['pp_mm_client_emails'] ) : '';
+	$parsed = pp_mm_parse_client_emails( $raw );
+	return array(
+		'fields'  => array(
+			'client_emails'   => implode( ', ', $parsed['valid'] ),
+			'client_locale'   => pp_mm_sanitize_client_locale( is_string( $_POST['pp_mm_client_locale'] ?? null ) ? $_POST['pp_mm_client_locale'] : '' ),
+			'client_recovery' => empty( $_POST['pp_mm_client_recovery'] ) ? 0 : 1,
+		),
+		'skipped' => $parsed['skipped'],
+	);
+}
+
 add_action( 'admin_init', 'pp_mm_handle_actions' );
 
 function pp_mm_handle_actions() {
@@ -1055,18 +1287,19 @@ function pp_mm_handle_actions() {
 			wp_safe_redirect( add_query_arg( 'pp_mm_url_error', $url_error, $page_url ) );
 			exit;
 		}
+		$client = pp_mm_client_fields_from_post();
 		$new_id = pp_mm_insert_site( array(
 			'label'     => sanitize_text_field( wp_unslash( $_POST['pp_mm_label'] ?? '' ) ),
 			'url'       => esc_url_raw( $raw_url ),
 			'secret'    => pp_mm_encrypt( sanitize_text_field( wp_unslash( $_POST['pp_mm_secret'] ?? '' ) ) ),
 			'frequency' => ( $_POST['pp_mm_frequency'] ?? '' ) === 'hourly' ? 'hourly' : 'daily',
-		) );
+		) + $client['fields'] );
+		$args = array( 'pp_mm_saved' => '1', 'pp_mm_skipped_emails' => $client['skipped'] ?: null );
 		if ( $new_id && ! empty( $_POST['pp_mm_verify'] ) ) {
 			pp_mm_manual_check( $new_id );
-			wp_safe_redirect( add_query_arg( array( 'pp_mm_saved' => '1', 'pp_mm_checked' => $new_id ), $page_url ) );
-			exit;
+			$args['pp_mm_checked'] = $new_id;
 		}
-		wp_safe_redirect( add_query_arg( 'pp_mm_saved', '1', $page_url ) );
+		wp_safe_redirect( add_query_arg( $args, $page_url ) );
 		exit;
 	}
 
@@ -1111,10 +1344,11 @@ function pp_mm_handle_actions() {
 		$new_secret = sanitize_text_field( wp_unslash( $_POST['pp_mm_new_secret'] ?? '' ) );
 
 		// Solo le colonne modificate dal form: lo stato del sito (scritto dal cron) resta com'è.
+		$client = pp_mm_client_fields_from_post();
 		$fields = array(
 			'label'     => sanitize_text_field( wp_unslash( $_POST['pp_mm_label'] ?? '' ) ),
 			'frequency' => in_array( $_POST['pp_mm_frequency'] ?? '', array( 'hourly', 'daily' ), true ) ? $_POST['pp_mm_frequency'] : $site['frequency'],
-		);
+		) + $client['fields'];
 		if ( $new_url !== $site['url'] || $new_secret !== '' ) {
 			$fields['url'] = $new_url;
 			if ( $new_secret !== '' ) {
@@ -1125,12 +1359,12 @@ function pp_mm_handle_actions() {
 		}
 		pp_mm_update_site( $site_id, $fields );
 
+		$args = array( 'pp_mm_updated' => '1', 'pp_mm_skipped_emails' => $client['skipped'] ?: null );
 		if ( ! empty( $_POST['pp_mm_verify'] ) ) {
 			pp_mm_manual_check( $site_id );
-			wp_safe_redirect( add_query_arg( array( 'pp_mm_updated' => '1', 'pp_mm_checked' => $site_id ), $page_url ) );
-			exit;
+			$args['pp_mm_checked'] = $site_id;
 		}
-		wp_safe_redirect( add_query_arg( 'pp_mm_updated', '1', $page_url ) );
+		wp_safe_redirect( add_query_arg( $args, $page_url ) );
 		exit;
 	}
 
@@ -1158,9 +1392,12 @@ function pp_mm_handle_actions() {
 
 		$export_sites = array_map( function( $site ) use ( $with_keys, &$key ) {
 			$row = array(
-				'label'     => $site['label'] ?? '',
-				'url'       => $site['url'] ?? '',
-				'frequency' => $site['frequency'] ?? 'daily',
+				'label'           => $site['label'] ?? '',
+				'url'             => $site['url'] ?? '',
+				'frequency'       => $site['frequency'] ?? 'daily',
+				'client_emails'   => $site['client_emails'] ?? '',
+				'client_locale'   => $site['client_locale'] ?? 'it_IT',
+				'client_recovery' => empty( $site['client_recovery'] ) ? '0' : '1',
 			);
 			if ( $with_keys ) {
 				$row['secret_enc'] = pp_mm_export_encrypt( pp_mm_decrypt( $site['secret'] ?? '' ), $key );
@@ -1280,13 +1517,17 @@ function pp_mm_handle_actions() {
 				$secret = $keys === 'plain' ? ( $raw['secret'] ?? '' ) : '';
 			}
 			$site = array(
-				'label'        => sanitize_text_field( $raw['label'] ?? '' ),
-				'url'          => $url,
-				'secret'       => pp_mm_encrypt( sanitize_text_field( $secret ) ),
-				'frequency'    => $freq,
-				'last_check'   => 0,
-				'last_status'  => '',
-				'last_message' => '',
+				'label'           => sanitize_text_field( $raw['label'] ?? '' ),
+				'url'             => $url,
+				'secret'          => pp_mm_encrypt( sanitize_text_field( $secret ) ),
+				'frequency'       => $freq,
+				'last_check'      => 0,
+				'last_status'     => '',
+				'last_message'    => '',
+				// Export precedenti alla 1.3.0: nessun cliente, italiano, ripristino attivo.
+				'client_emails'   => implode( ', ', pp_mm_parse_client_emails( $raw['client_emails'] ?? '' )['valid'] ),
+				'client_locale'   => pp_mm_sanitize_client_locale( $raw['client_locale'] ?? '' ),
+				'client_recovery' => ( $raw['client_recovery'] ?? '1' ) === '0' ? 0 : 1,
 			);
 			// Sito senza chiave: già in KO con la causa, così il cron non manda un alert per ogni sito importato.
 			if ( $site['secret'] === '' ) {
@@ -1321,6 +1562,33 @@ register_deactivation_hook( __FILE__, function () {
 } );
 
 // ─── Pagina: Siti monitorati ──────────────────────────────────────────────────
+
+/** Campi "Avvisi al cliente" nel form Modifica (riga a tutta larghezza sotto gli altri campi). */
+function pp_mm_render_client_fields_inline( array $site ): void {
+	$id = (int) $site['id'];
+	?>
+	<fieldset style="flex-basis:100%;display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0;padding:0;border:0">
+		<legend style="float:left;margin-right:4px;font-weight:600"><?php esc_html_e( 'Client notifications', 'paperplane-mail-test' ); ?></legend>
+		<label style="display:flex;align-items:center;gap:6px">
+			<?php esc_html_e( 'Addresses', 'paperplane-mail-test' ); ?>
+			<input type="text" name="pp_mm_client_emails" class="regular-text" value="<?php echo esc_attr( $site['client_emails'] ); ?>" placeholder="cliente@esempio.it" aria-describedby="pp-mm-client-desc-<?php echo $id; ?>">
+		</label>
+		<label style="display:flex;align-items:center;gap:6px">
+			<?php esc_html_e( 'Language', 'paperplane-mail-test' ); ?>
+			<select name="pp_mm_client_locale">
+				<?php foreach ( pp_mm_client_locales() as $locale => $language ) : ?>
+					<option value="<?php echo esc_attr( $locale ); ?>" lang="<?php echo esc_attr( substr( $locale, 0, 2 ) ); ?>" <?php selected( $site['client_locale'], $locale ); ?>><?php echo esc_html( $language ); ?></option>
+				<?php endforeach; ?>
+			</select>
+		</label>
+		<label style="display:flex;align-items:center;gap:6px">
+			<input type="checkbox" name="pp_mm_client_recovery" value="1" <?php checked( (int) $site['client_recovery'], 1 ); ?>>
+			<?php esc_html_e( 'Also tell the client when the problem is solved', 'paperplane-mail-test' ); ?>
+		</label>
+		<span id="pp-mm-client-desc-<?php echo $id; ?>" style="flex-basis:100%;color:#646970;font-size:.9em"><?php echo esc_html( sprintf( __( 'Optional. Up to %d addresses separated by comma: they receive an email when the site cannot send emails or is not reachable.', 'paperplane-mail-test' ), PP_MM_CLIENT_MAX_EMAILS ) ); ?></span>
+	</fieldset>
+	<?php
+}
 
 function pp_mm_render_sites_page() {
 	if ( ! current_user_can( 'manage_options' ) ) {
@@ -1365,6 +1633,18 @@ function pp_mm_render_sites_page() {
 			</p></div>
 		<?php endif; ?>
 
+		<?php if ( pp_mm_client_reply_to() === '' && pp_mm_count_sites_with_clients() > 0 ) : ?>
+			<div class="notice notice-warning"><p>
+				<?php printf(
+					/* translators: %s link to the settings page */
+					esc_html__( 'Some sites have client addresses, but no email is sent to clients until you enter the Reply-To address in %s.', 'paperplane-mail-test' ),
+					'<a href="' . esc_url( admin_url( 'admin.php?page=pp-mail-monitor-settings' ) ) . '">' . esc_html__( 'Settings', 'paperplane-mail-test' ) . '</a>'
+				); ?>
+			</p></div>
+		<?php endif; ?>
+		<?php if ( isset( $_GET['pp_mm_skipped_emails'] ) ) : ?>
+			<div class="notice notice-warning is-dismissible"><p><?php echo esc_html( sprintf( __( 'Some client addresses were not saved because they are not valid or exceed the limit of %d per site.', 'paperplane-mail-test' ), PP_MM_CLIENT_MAX_EMAILS ) ); ?></p></div>
+		<?php endif; ?>
 		<?php if ( isset( $_GET['pp_mm_saved'] ) ) : ?>
 			<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Site added.', 'paperplane-mail-test' ); ?></p></div>
 		<?php endif; ?>
@@ -1487,6 +1767,9 @@ function pp_mm_render_sites_page() {
 					<td>
 						<strong><?php echo esc_html( $site_name ); ?></strong><br>
 						<span style="color:#646970;font-size:.9em"><?php echo esc_html( $site['url'] ); ?></span>
+						<?php if ( $site['client_emails'] !== '' ) : ?>
+							<br><span style="color:#646970;font-size:.85em"><?php echo esc_html( sprintf( __( 'Client: %s', 'paperplane-mail-test' ), $site['client_emails'] ) ); ?></span>
+						<?php endif; ?>
 					</td>
 					<td><?php echo $site['frequency'] === 'hourly' ? esc_html__( 'Every hour', 'paperplane-mail-test' ) : esc_html__( 'Every day', 'paperplane-mail-test' ); ?></td>
 					<td><?php echo esc_html( $last_check ); ?></td>
@@ -1502,6 +1785,9 @@ function pp_mm_render_sites_page() {
 							<?php endif; ?>
 							<?php if ( ! empty( $site['error_since'] ) ) : ?>
 								<br><span style="font-weight:normal;font-size:.8em;color:#646970"><?php printf( esc_html__( 'KO since %1$s (%2$s)', 'paperplane-mail-test' ), esc_html( wp_date( 'Y/m/d H:i', (int) $site['error_since'] ) ), esc_html( human_time_diff( (int) $site['error_since'], time() ) ) ); ?></span>
+							<?php endif; ?>
+							<?php if ( $site['client_alert'] !== '' ) : ?>
+								<br><span style="font-weight:normal;font-size:.8em;color:#646970"><?php esc_html_e( 'Client notified', 'paperplane-mail-test' ); ?></span>
 							<?php endif; ?>
 						<?php endif; ?>
 					</td>
@@ -1550,6 +1836,7 @@ function pp_mm_render_sites_page() {
 									<option value="hourly" <?php selected( $site['frequency'], 'hourly' ); ?>><?php esc_html_e( 'Every hour', 'paperplane-mail-test' ); ?></option>
 								</select>
 							</label>
+							<?php pp_mm_render_client_fields_inline( $site ); ?>
 							<button type="submit" class="button button-primary"><?php esc_html_e( 'Save changes', 'paperplane-mail-test' ); ?></button>
 							<button type="submit" name="pp_mm_verify" value="1" class="button button-secondary"><?php esc_html_e( 'Save and verify', 'paperplane-mail-test' ); ?></button>
 							<button type="button" class="button button-secondary pp-mm-cancel-btn" data-row="<?php echo esc_attr( $edit_id ); ?>"><?php esc_html_e( 'Cancel', 'paperplane-mail-test' ); ?></button>
@@ -1638,6 +1925,32 @@ function pp_mm_render_sites_page() {
 							<option value="daily"><?php esc_html_e( 'Every day', 'paperplane-mail-test' ); ?></option>
 							<option value="hourly"><?php esc_html_e( 'Every hour', 'paperplane-mail-test' ); ?></option>
 						</select>
+					</td>
+				</tr>
+				<tr>
+					<th><label for="pp_mm_client_emails"><?php esc_html_e( 'Client notifications', 'paperplane-mail-test' ); ?></label></th>
+					<td>
+						<input type="text" id="pp_mm_client_emails" name="pp_mm_client_emails" class="regular-text" placeholder="cliente@esempio.it" aria-describedby="pp_mm_client_emails_desc">
+						<p class="description" id="pp_mm_client_emails_desc"><?php echo esc_html( sprintf( __( 'Optional. Up to %d addresses separated by comma: they receive an email when the site cannot send emails or is not reachable.', 'paperplane-mail-test' ), PP_MM_CLIENT_MAX_EMAILS ) ); ?></p>
+					</td>
+				</tr>
+				<tr>
+					<th><label for="pp_mm_client_locale"><?php esc_html_e( 'Client language', 'paperplane-mail-test' ); ?></label></th>
+					<td>
+						<select id="pp_mm_client_locale" name="pp_mm_client_locale">
+							<?php foreach ( pp_mm_client_locales() as $locale => $language ) : ?>
+								<option value="<?php echo esc_attr( $locale ); ?>" lang="<?php echo esc_attr( substr( $locale, 0, 2 ) ); ?>"><?php echo esc_html( $language ); ?></option>
+							<?php endforeach; ?>
+						</select>
+					</td>
+				</tr>
+				<tr>
+					<th><?php esc_html_e( 'Recovery email', 'paperplane-mail-test' ); ?></th>
+					<td>
+						<label>
+							<input type="checkbox" name="pp_mm_client_recovery" value="1" checked>
+							<?php esc_html_e( 'Also tell the client when the problem is solved', 'paperplane-mail-test' ); ?>
+						</label>
 					</td>
 				</tr>
 			</table>
@@ -1778,6 +2091,7 @@ function pp_mm_render_settings_page() {
 
 	$notify         = get_option( PP_MM_OPTION_NOTIFY, '' );
 	$silent_test    = get_option( PP_MM_OPTION_SILENT_TEST, '' );
+	$client_reply   = pp_mm_client_reply_to();
 	$weekly_enabled = (int) get_option( PP_MM_OPTION_WEEKLY_ENABLED, 0 );
 	$weekly_day     = (int) get_option( PP_MM_OPTION_WEEKLY_DAY, 1 );
 	$weekly_hour    = (int) get_option( PP_MM_OPTION_WEEKLY_HOUR, 8 );
@@ -1833,6 +2147,23 @@ function pp_mm_render_settings_page() {
 							class="regular-text"
 							placeholder="paperplane-mail-test@example.com">
 						<p class="description"><?php esc_html_e( 'Optional. Address that receives automatic cron test emails. If empty, each monitored site sends the test to its own admin email (Settings → General). A dedicated mailbox with a delete-all rule is recommended to avoid inbox noise.', 'paperplane-mail-test' ); ?></p>
+					</td>
+				</tr>
+			</table>
+
+			<h2><?php esc_html_e( 'Client notifications', 'paperplane-mail-test' ); ?></h2>
+			<p><?php esc_html_e( 'For each site you can enter the client addresses (Edit): the client receives an email, in the language chosen for the site, when the site cannot send emails or is not reachable, and another one when the problem is solved. Problems of the monitoring itself (secret key, REST API blocked, child plugin) are sent only to the alert recipients above.', 'paperplane-mail-test' ); ?></p>
+			<table class="form-table" role="presentation">
+				<tr>
+					<th><label for="pp_mm_client_reply_to"><?php esc_html_e( 'Reply-To address', 'paperplane-mail-test' ); ?></label></th>
+					<td>
+						<input type="email" id="pp_mm_client_reply_to"
+							name="<?php echo esc_attr( PP_MM_OPTION_CLIENT_REPLY_TO ); ?>"
+							value="<?php echo esc_attr( $client_reply ); ?>"
+							class="regular-text"
+							aria-describedby="pp_mm_client_reply_to_desc"
+							placeholder="assistenza@esempio.it">
+						<p class="description" id="pp_mm_client_reply_to_desc"><?php esc_html_e( 'Required to send emails to clients: their replies go to this address. While it is empty, no email is sent to clients.', 'paperplane-mail-test' ); ?></p>
 					</td>
 				</tr>
 			</table>

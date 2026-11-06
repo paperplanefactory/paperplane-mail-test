@@ -21,6 +21,7 @@ foreach ( array(
 	'pp_mm_weekly_hour',
 	'pp_mm_weekly_last_sent',
 	'pp_mm_silent_test_email',
+	'pp_mm_client_reply_to',
 	'pp_mm_secrets_encrypted',
 	'pp_mm_db_version',
 	'pp_mm_db_upgrading',

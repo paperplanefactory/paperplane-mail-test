@@ -104,7 +104,7 @@ When the URL or the key changes, the site's status is reset. **Save and verify**
 
 ## How it works
 
-1. Every 5 minutes the cron picks the sites that are due (hourly: last check at least 55 minutes ago; daily: at least 23 hours 55 minutes ago), most overdue first. Each run lasts at most about a minute; sites left over are checked in the next run, so with many sites the load is spread out
+1. Every 5 minutes the cron picks the sites that are due (hourly: last check at least 55 minutes ago; daily: at least 23 hours 55 minutes ago; **sites in KO: every 15 minutes**, whatever their frequency, so a recovery is detected quickly), most overdue first. Each run lasts at most about a minute; sites left over are checked in the next run, so with many sites the load is spread out
 2. The plugin sends a signed `POST` request to `/wp-json/pp-mail-test/v1/check` on the client site
 3. The child plugin runs `wp_mail()` and returns `true` or `false`
 4. If the result is KO **and the previous check was OK** (state change only), an alert email is sent to the configured recipients
@@ -157,6 +157,16 @@ With many sites the list offers **search** by name or URL, **filters** by status
 - **KO alert** — sent when a site's mail function fails after a previously successful check. Includes site name, URL, cause, technical details and timestamp. No further alerts are sent while the site stays KO.
 - **Recovery** — sent when a site that was KO works again, with the time it went KO and how long it lasted.
 
+### Client notifications
+
+For each site you can enter up to 5 **client addresses** (Add site, or **Edit**), the **language** of the emails (Italian or English) and whether to send the **recovery email** too (on by default).
+
+- The client receives a **separate email** written for them (not a copy of the agency alert), with the technical detail of the error (email addresses are removed from it).
+- Only for problems that concern the client's site: **emails not sent** (`wp_mail()` failed) or **site not reachable** (domain not resolving, timeout, connection error, HTTP 5xx). Problems of the monitoring itself (secret key, REST API blocked by a theme or plugin, child plugin inactive, clocks) are sent only to the agency.
+- **One email per KO episode**, only from automatic checks: a failed **Check now** during maintenance does not notify the client. The recovery email is sent by any successful check.
+- **Reply-To** (Settings → Client notifications) is required: while it is empty, no email is sent to clients and the site list shows a warning.
+- The agency alert says whether the client has been notified too.
+
 ### When a site is down or returns an error
 
 - **Not reachable** (timeout, connection refused, SSL error) and temporary errors (HTTP 502, 503, 504) are retried once after 5 seconds before the site is marked KO, so a short network glitch does not trigger an alert.
@@ -167,7 +177,10 @@ With many sites the list offers **search** by name or URL, **filters** by status
 |---|---|
 | Site not reachable | Timeout, connection refused or SSL error |
 | The domain does not resolve (DNS) | Expired domain or DNS problem |
-| HTTP 401 — Authentication refused | Wrong secret key, too many calls in a short time, or child plugin older than 1.4.11 |
+| HTTP 401 — The secret key is wrong | Copy the key again from the client site and update it with **Edit** (child 1.4.15 or later) |
+| HTTP 401 — The child plugin has no secret key yet | Open **Tools → PaperPlane Mail Test** on the client site and copy the key |
+| HTTP 401 — Authentication refused by the site, not by the child plugin | The theme or another plugin blocks the REST API for visitors who are not logged in: allow the `/pp-mail-test/v1/` route (the endpoint has its own signed authentication). With a child older than 1.4.15 it can also be a wrong key or too many calls |
+| HTTP 429 — Too many checks in a short time | The client site accepts up to 100 checks every 5 minutes |
 | HTTP 401 — Clocks differ by more than 5 minutes | Check the time (NTP) on both servers |
 | HTTP 401 — Request rejected as already received | Replay protection; if it repeats, check the server clocks |
 | HTTP 401/403 — Access denied | A firewall or security plugin (e.g. Cloudflare, Wordfence) blocks the REST API |

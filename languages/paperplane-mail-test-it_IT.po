@@ -2,10 +2,10 @@
 # This file is distributed under the same license as the PaperPlane Mail Test plugin.
 msgid ""
 msgstr ""
-"Project-Id-Version: PaperPlane Mail Test 1.0.0\n"
-"Report-Msgid-Bugs-To: https://paperplanefactory.com\n"
-"POT-Creation-Date: 2026-10-09\n"
-"PO-Revision-Date: 2026-10-09\n"
+"Project-Id-Version: PaperPlane Mail Test 1.3.0\n"
+"Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/paperplane-mail-test\n"
+"POT-Creation-Date: 2026-11-06T14:34:50+00:00\n"
+"PO-Revision-Date: 2026-11-06 17:00+0100\n"
 "Language: it_IT\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -14,529 +14,840 @@ msgstr ""
 "X-Generator: manual\n"
 "X-Domain: paperplane-mail-test\n"
 
-#: paperplane-mail-test.php:120
-msgid "[PaperPlane Mail Test issue] Mail KO: %s"
-msgstr "[PaperPlane Mail Test issue] Mail KO: %s"
-
-#: paperplane-mail-test.php:121
-msgid "The mail function test on %s failed."
-msgstr "Il test della funzione mail su %s è fallito."
-
-#: paperplane-mail-test.php:122
-msgid "URL:"
-msgstr "URL:"
-
-#: paperplane-mail-test.php:123
-msgid "Error:"
-msgstr "Errore:"
-
-#: paperplane-mail-test.php:124
-msgid "Date:"
-msgstr "Data:"
-
-#: paperplane-mail-test.php:134
-#: paperplane-mail-test.php:232
-msgid "Site Mail Monitor"
-msgstr "Monitor Mail Siti"
-
-#: paperplane-mail-test.php:135
-msgid "Mail Monitor"
-msgstr "Monitor Mail"
-
-#: paperplane-mail-test.php:233
-msgid "Periodically checks that the mail function works on each site. Requires the %s plugin installed on each monitored site."
-msgstr "Controlla periodicamente che la funzione mail funzioni su ogni sito. Richiede il plugin %s installato su ciascun sito monitorato."
-
-#: paperplane-mail-test.php:236
-msgid "Site added."
-msgstr "Sito aggiunto."
-
-#: paperplane-mail-test.php:244
-msgid "KO notification email"
-msgstr "Email notifica KO"
-
-#: paperplane-mail-test.php:248
-msgid "Alert recipient"
-msgstr "Destinatario avvisi"
-
-#: paperplane-mail-test.php:255
-msgid "Multiple addresses separated by comma."
-msgstr "Più indirizzi separati da virgola."
-
-#: paperplane-mail-test.php:259
-msgid "Save"
-msgstr "Salva"
-
-#: paperplane-mail-test.php:263
-msgid "Monitored sites"
-msgstr "Siti monitorati"
-
-#: paperplane-mail-test.php:268
-msgid "Site"
-msgstr "Sito"
-
-#: paperplane-mail-test.php:269
-msgid "Frequency"
-msgstr "Frequenza"
-
-#: paperplane-mail-test.php:270
-msgid "Last check"
-msgstr "Ultimo check"
-
-#: paperplane-mail-test.php:271
-msgid "Status"
-msgstr "Stato"
-
-#: paperplane-mail-test.php:272
-msgid "Actions"
-msgstr "Azioni"
-
-#: paperplane-mail-test.php:285
-#: paperplane-mail-test.php:340
-msgid "Every hour"
-msgstr "Ogni ora"
-
-#: paperplane-mail-test.php:285
-#: paperplane-mail-test.php:339
-msgid "Every day"
-msgstr "Ogni giorno"
-
-#: paperplane-mail-test.php:299
-msgid "Check now"
-msgstr "Controlla ora"
-
-#: paperplane-mail-test.php:304
-msgid "Remove this site?"
-msgstr "Rimuovere questo sito?"
-
-#: paperplane-mail-test.php:308
-msgid "Remove"
-msgstr "Rimuovi"
-
-#: paperplane-mail-test.php:316
-msgid "No sites configured."
-msgstr "Nessun sito configurato."
-
-#: paperplane-mail-test.php:319
-#: paperplane-mail-test.php:349
-msgid "Add site"
-msgstr "Aggiungi sito"
-
-msgid "Invalid URL. Only https:// addresses pointing to public sites are accepted."
-msgstr "URL non valido. Sono accettati solo indirizzi https:// che puntano a siti pubblici."
-
-msgid "You do not have sufficient permissions to access this page."
-msgstr "Non hai i permessi necessari per accedere a questa pagina."
-
-msgid "Must start with https://."
-msgstr "Deve iniziare con https://."
-
-#: paperplane-mail-test.php:325
-msgid "Name / label"
-msgstr "Nome / etichetta"
-
-#: paperplane-mail-test.php:329
-msgid "Site URL"
-msgstr "URL sito"
-
-#: paperplane-mail-test.php:333
-msgid "Secret key"
-msgstr "Chiave segreta"
-
-#: paperplane-mail-test.php:335
-msgid "Copy from Tools → Mail Test on the site"
-msgstr "Copia da Strumenti → Mail Test sul sito"
-
-#: paperplane-mail-test.php:336
-msgid "Available in %s on the site to monitor."
-msgstr "Disponibile in %s sul sito da monitorare."
-
-#: paperplane-mail-test.php:340
-msgid "Check frequency"
-msgstr "Frequenza controllo"
-
-msgid "%1$d sites monitored — %2$d OK, %3$d KO"
-msgstr "%1$d siti monitorati — %2$d OK, %3$d KO"
-
-msgid "[PaperPlane Mail Test Weekly Report] PaperPlane Mail Monitor — %s"
-msgstr "[PaperPlane Mail Test Weekly Report] PaperPlane Mail Monitor — %s"
-
-msgid "Weekly Mail Monitor Report"
-msgstr "Report settimanale Mail Monitor"
-
-msgid "Weekly report"
-msgstr "Report settimanale"
-
-msgid "Enable"
-msgstr "Attiva"
-
-msgid "Send a weekly summary email to alert recipients"
-msgstr "Invia una mail di riepilogo settimanale ai destinatari degli avvisi"
-
-msgid "Day of the week"
-msgstr "Giorno della settimana"
-
-msgid "Monday"
-msgstr "Lunedì"
-
-msgid "Tuesday"
-msgstr "Martedì"
-
-msgid "Wednesday"
-msgstr "Mercoledì"
-
-msgid "Thursday"
-msgstr "Giovedì"
-
-msgid "Friday"
-msgstr "Venerdì"
-
-msgid "Saturday"
-msgstr "Sabato"
-
-msgid "Sunday"
-msgstr "Domenica"
-
-msgid "Time"
-msgstr "Ora"
-
-msgid "Based on the timezone set in Settings → General."
-msgstr "In base al fuso orario impostato in Impostazioni → Generali."
-
-msgid "Monitored Sites"
-msgstr "Siti monitorati"
-
-msgid "Settings"
-msgstr "Impostazioni"
-
-msgid "Mail Monitor — Settings"
-msgstr "Mail Monitor — Impostazioni"
-
-msgid "Sites"
-msgstr "Siti"
-
-msgid "%d sites imported successfully."
-msgstr "%d siti importati con successo."
-
-msgid "Export / Import"
-msgstr "Export / Import"
-
-msgid "Use export and import to move the list of monitored sites to another installation."
-msgstr "Usa export e import per spostare la lista dei siti monitorati su un'altra installazione."
-
-msgid "Export"
-msgstr "Export"
-
-msgid "Download export file"
-msgstr "Scarica il file di export"
-
-msgid "Import"
-msgstr "Import"
-
-msgid "Export file (.json)"
-msgstr "File di export (.json)"
-
-msgid "Import mode"
-msgstr "Modalità di import"
-
-msgid "Replace all existing sites"
-msgstr "Sostituisci tutti i siti esistenti"
-
-msgid "Add to existing sites"
-msgstr "Aggiungi ai siti esistenti"
-
-msgid "\"Replace\" will permanently delete all currently monitored sites."
-msgstr "\"Sostituisci\" eliminerà definitivamente tutti i siti attualmente monitorati."
-
-msgid "Upload error. Please try again."
-msgstr "Errore nel caricamento. Riprova."
-
-msgid "File too large. Maximum size is 256 KB."
-msgstr "File troppo grande. La dimensione massima è 256 KB."
-
-msgid "Invalid file type. Please upload a .json file."
-msgstr "Tipo di file non valido. Carica un file .json."
-
-msgid "Invalid file format. The file does not appear to be a valid PaperPlane Mail Monitor export."
-msgstr "Formato file non valido. Il file non sembra essere un export valido di PaperPlane Mail Monitor."
-
-msgid "No valid sites found in the file."
-msgstr "Nessun sito valido trovato nel file."
-
-msgid "Silent test address"
-msgstr "Indirizzo test silenzioso"
-
-msgid "Optional. Address that receives automatic cron test emails. If empty, each monitored site sends the test to its own admin email (Settings → General). A dedicated mailbox with a delete-all rule is recommended to avoid inbox noise."
-msgstr "Opzionale. Indirizzo che riceve le mail di test automatiche del cron. Se vuoto, ogni sito monitorato invia il test al proprio indirizzo email di amministrazione (Impostazioni → Generali). Si consiglia una casella dedicata con una regola elimina-tutto per evitare rumore nella posta in arrivo."
-
-msgid "Next check"
-msgstr "Prossimo check"
-
-msgid "Site updated."
-msgstr "Sito aggiornato."
-
-msgid "Edit"
-msgstr "Modifica"
-
-msgid "Save changes"
-msgstr "Salva modifiche"
-
-msgid "Cancel"
-msgstr "Annulla"
-
-msgid "Pending"
-msgstr "In attesa"
-
-msgid "Soon"
-msgstr "Imminente"
-
+#. Plugin Name of the plugin
+#: paperplane-mail-test.php
+msgid "PaperPlane Mail Test"
+msgstr "PaperPlane Mail Test"
+
+#. Description of the plugin
+#: paperplane-mail-test.php
+msgid "Monitors mail function on client sites. Requires PaperPlane Mail Test Child installed on each site."
+msgstr "Monitora la funzione mail sui siti dei clienti. Richiede PaperPlane Mail Test Child installato su ogni sito."
+
+#. Author of the plugin
+#: paperplane-mail-test.php
+msgid "Paper Plane Factory"
+msgstr "Paper Plane Factory"
+
+#: paperplane-mail-test.php:49
 msgid "PaperPlane Mail Test requires the PHP OpenSSL extension. Please enable it on your server and try again."
 msgstr "PaperPlane Mail Test richiede l'estensione PHP OpenSSL. Abilitala sul server e riprova."
 
-msgid "New secret key"
-msgstr "Nuova chiave segreta"
-
-msgid "Leave empty to keep the current key"
-msgstr "Lascia vuoto per mantenere la chiave attuale"
-
-msgid "Save and verify"
-msgstr "Salva e verifica"
-
-msgid "Add and verify"
-msgstr "Aggiungi e verifica"
-
-msgid "Access denied: a firewall or security plugin is blocking the REST API."
-msgstr "Accesso negato: un firewall o un plugin di sicurezza blocca la REST API."
-
-msgid "Details:"
-msgstr "Dettagli:"
-
-msgid "Endpoint not found: the PaperPlane Mail Test Child plugin is not active on the site."
-msgstr "Endpoint non trovato: il plugin PaperPlane Mail Test Child non è attivo sul sito."
-
-msgid "Gateway error: the server or proxy in front of the site is not responding."
-msgstr "Errore di gateway: il server o il proxy davanti al sito non risponde."
-
+#: paperplane-mail-test.php:517
 msgid "Invalid URL: credentials (user:password@) are not allowed in the address."
 msgstr "URL non valido: le credenziali (utente:password@) non sono ammesse nell'indirizzo."
 
-msgid "Invalid response: HTTP 200 but not the expected data (cache plugin, maintenance page or PHP output)."
-msgstr "Risposta non valida: HTTP 200 ma senza i dati attesi (plugin di cache, pagina di manutenzione o output PHP)."
-
-msgid "KO since %1$s (%2$s)"
-msgstr "KO dal %1$s (%2$s)"
-
-msgid "KO since:"
-msgstr "KO dal:"
-
-msgid "REST API not reachable: disabled or blocked on the site."
-msgstr "REST API non raggiungibile: disattivata o bloccata sul sito."
-
-msgid "Server error on the client site (for example a PHP error)."
-msgstr "Errore del server sul sito client (per esempio un errore PHP)."
-
-msgid "Site not reachable: %s"
-msgstr "Sito non raggiungibile: %s"
-
-msgid "Site unavailable: maintenance mode or overloaded server."
-msgstr "Sito non disponibile: modalità manutenzione o server sovraccarico."
-
+#: paperplane-mail-test.php:519
 msgid "The domain does not resolve (DNS): check that the domain is active and its DNS records are correct."
 msgstr "Il dominio non si risolve (DNS): verifica che il dominio sia attivo e che i record DNS siano corretti."
 
-msgid "The mail function on %s works again."
-msgstr "La funzione mail su %s funziona di nuovo."
-
-msgid "The secret key on the client site can no longer be decrypted (its WordPress security keys have changed). Generate a new key on the client site and update it here with Edit."
-msgstr "La chiave segreta sul sito client non è più decifrabile (le sue chiavi di sicurezza di WordPress sono cambiate). Genera una nuova chiave sul sito client e aggiornala qui con Modifica."
-
-msgid "The secret key saved here can no longer be decrypted (the WordPress security keys of this site have changed). Re-enter the key with Edit."
-msgstr "La chiave segreta salvata qui non è più decifrabile (le chiavi di sicurezza di WordPress di questo sito sono cambiate). Reinserisci la chiave con Modifica."
-
-msgid "The site redirects to %s: update the site URL with Edit."
-msgstr "Il sito reindirizza a %s: aggiorna l'URL del sito con Modifica."
-
+#: paperplane-mail-test.php:521
 msgid "URL not allowed: the domain points to a private or reserved address. Only public sites can be monitored."
 msgstr "URL non consentito: il dominio punta a un indirizzo privato o riservato. Si possono monitorare solo siti pubblici."
 
-msgid "Unexpected response."
-msgstr "Risposta inattesa."
+#: paperplane-mail-test.php:523
+msgid "Invalid URL. Only https:// addresses pointing to public sites are accepted."
+msgstr "URL non valido. Sono accettati solo indirizzi https:// che puntano a siti pubblici."
 
-msgid "[PaperPlane Mail Test resolved] Mail OK: %s"
-msgstr "[PaperPlane Mail Test risolto] Mail OK: %s"
-
-msgid "wp_mail() failed on the client site: check its mail/SMTP configuration. (%s)"
-msgstr "wp_mail() non riuscita sul sito client: controlla la sua configurazione mail/SMTP. (%s)"
-
-msgid "Authentication refused: wrong secret key, too many calls in a short time, or child plugin older than 1.4.11 (update it)."
-msgstr "Autenticazione rifiutata: chiave segreta errata, troppe chiamate in poco tempo, o plugin child precedente alla 1.4.11 (aggiornalo)."
-
-msgid "Request rejected as already received (replay protection). If it happens again, check the server clocks."
-msgstr "Richiesta rifiutata perché già ricevuta (protezione replay). Se si ripete, controlla gli orologi dei server."
-
-msgid "The clocks of this server and the client site differ by more than 5 minutes: check the time (NTP) on both servers."
-msgstr "Gli orologi di questo server e del sito client differiscono di più di 5 minuti: controlla l'ora (NTP) su entrambi i server."
-
-msgid "At least %d characters. It will be asked when importing: keep it separate from the file (for example in a password manager), it cannot be recovered."
-msgstr "Almeno %d caratteri. Verrà richiesta all'import: conservala separata dal file (per esempio in un password manager), non è recuperabile."
-
-msgid "Confirm password"
-msgstr "Conferma password"
-
-msgid "Do not export the keys"
-msgstr "Non esportare le chiavi"
-
-msgid "Downloads a JSON file with all monitored sites. Secret keys are never exported in clear."
-msgstr "Scarica un file JSON con tutti i siti monitorati. Le chiavi segrete non vengono mai esportate in chiaro."
-
-msgid "Export password"
-msgstr "Password dell'export"
-
-msgid "No secret key saved for this site: enter it with Edit."
-msgstr "Nessuna chiave segreta salvata per questo sito: inseriscila con Modifica."
-
-msgid "Only for password-protected exports."
-msgstr "Solo per gli export protetti da password."
-
-msgid "Password"
-msgstr "Password"
-
-msgid "Protect with a password (recommended)"
-msgstr "Proteggi con una password (consigliato)"
-
-msgid "Secret keys"
-msgstr "Chiavi segrete"
-
-msgid "The export password must be at least %d characters long."
-msgstr "La password dell'export deve avere almeno %d caratteri."
-
-msgid "The sites were imported without secret keys: enter the key of each site with Edit (copy it from Tools → PaperPlane Mail Test on the client site, or generate a new one there)."
-msgstr "I siti sono stati importati senza chiavi segrete: inserisci la chiave di ogni sito con Modifica (copiala da Strumenti → PaperPlane Mail Test sul sito client, oppure generane una nuova lì)."
-
-msgid "The two passwords do not match."
-msgstr "Le due password non coincidono."
-
-msgid "This export is password-protected: enter its password to import it."
-msgstr "Questo export è protetto da password: inserisci la password per importarlo."
-
-msgid "Upload an export file generated by this plugin. The secret keys in the file must still be the ones active on the respective client sites."
-msgstr "Carica un file di export generato da questo plugin. Le chiavi segrete nel file devono essere ancora quelle attive sui rispettivi siti client."
-
-msgid "Without keys, after importing you will have to enter the key of each site with Edit."
-msgstr "Senza chiavi, dopo l'import dovrai inserire la chiave di ogni sito con Modifica."
-
-msgid "Wrong password, or the file has been modified. No sites were imported."
-msgstr "Password errata, oppure il file è stato modificato. Nessun sito è stato importato."
-
-msgid "%1$d checks, %2$d KO — %3$s%% successful"
-msgstr "%1$d check, %2$d KO — %3$s%% riusciti"
-
-msgid "All"
-msgstr "Tutti"
-
-msgid "Automatic"
-msgstr "Automatico"
-
-msgid "Back to the sites"
-msgstr "Torna ai siti"
-
-msgid "Cause"
-msgstr "Causa"
-
-msgid "Clear search"
-msgstr "Annulla ricerca"
-
-msgid "Date"
-msgstr "Data"
-
+#: paperplane-mail-test.php:562
 msgid "Every 5 minutes (PaperPlane Mail Test)"
 msgstr "Ogni 5 minuti (PaperPlane Mail Test)"
 
-msgid "History"
-msgstr "Storico"
+#: paperplane-mail-test.php:699
+msgid "No secret key saved for this site: enter it with Edit."
+msgstr "Nessuna chiave segreta salvata per questo sito: inseriscila con Modifica."
 
-msgid "History: %s"
-msgstr "Storico: %s"
+#: paperplane-mail-test.php:761
+msgid "The secret key saved here can no longer be decrypted (the WordPress security keys of this site have changed). Re-enter the key with Edit."
+msgstr "La chiave segreta salvata qui non è più decifrabile (le chiavi di sicurezza di WordPress di questo sito sono cambiate). Reinserisci la chiave con Modifica."
 
-msgid "KO"
-msgstr "KO"
+#: paperplane-mail-test.php:782
+#, php-format
+msgid "Site not reachable: %s"
+msgstr "Sito non raggiungibile: %s"
 
-msgid "Last 30 days"
-msgstr "Ultimi 30 giorni"
+#: paperplane-mail-test.php:798
+msgid "Invalid response: HTTP 200 but not the expected data (cache plugin, maintenance page or PHP output)."
+msgstr "Risposta non valida: HTTP 200 ma senza i dati attesi (plugin di cache, pagina di manutenzione o output PHP)."
 
-msgid "Manual"
-msgstr "Manuale"
+#: paperplane-mail-test.php:804
+#, php-format
+msgid "wp_mail() failed on the client site: check its mail/SMTP configuration. (%s)"
+msgstr "wp_mail() non riuscita sul sito client: controlla la sua configurazione mail/SMTP. (%s)"
 
-msgid "Name or URL"
-msgstr "Nome o URL"
+#: paperplane-mail-test.php:816
+msgid "The secret key is wrong: copy it again from Tools → PaperPlane Mail Test on the client site and update it here with Edit."
+msgstr "Chiave segreta errata: copiala di nuovo da Strumenti → PaperPlane Mail Test sul sito client e aggiornala qui con Modifica."
 
-msgid "Never checked"
-msgstr "Mai controllati"
+#: paperplane-mail-test.php:818
+msgid "The child plugin has no secret key yet: open Tools → PaperPlane Mail Test on the client site, copy the key and enter it here with Edit."
+msgstr "Il plugin child non ha ancora una chiave segreta: apri Strumenti → PaperPlane Mail Test sul sito client, copia la chiave e inseriscila qui con Modifica."
 
-msgid "Next page"
-msgstr "Pagina successiva"
+#: paperplane-mail-test.php:820
+msgid "Too many checks in a short time: the client site accepts up to 100 every 5 minutes. Wait a few minutes."
+msgstr "Troppe verifiche in poco tempo: il sito client ne accetta al massimo 100 ogni 5 minuti. Attendi qualche minuto."
 
-msgid "No checks in the last 30 days."
-msgstr "Nessun check negli ultimi 30 giorni."
+#: paperplane-mail-test.php:822
+msgid "The clocks of this server and the client site differ by more than 5 minutes: check the time (NTP) on both servers."
+msgstr "Gli orologi di questo server e del sito client differiscono di più di 5 minuti: controlla l'ora (NTP) su entrambi i server."
 
-msgid "No checks recorded yet."
-msgstr "Nessun check registrato."
+#: paperplane-mail-test.php:824
+msgid "Request rejected as already received (replay protection). If it happens again, check the server clocks."
+msgstr "Richiesta rifiutata perché già ricevuta (protezione replay). Se si ripete, controlla gli orologi dei server."
 
-msgid "No sites match the search or filter."
-msgstr "Nessun sito corrisponde alla ricerca o al filtro."
+#: paperplane-mail-test.php:826
+msgid "The secret key on the client site can no longer be decrypted (its WordPress security keys have changed). Generate a new key on the client site and update it here with Edit."
+msgstr "La chiave segreta sul sito client non è più decifrabile (le sue chiavi di sicurezza di WordPress sono cambiate). Genera una nuova chiave sul sito client e aggiornala qui con Modifica."
 
-msgid "OK"
-msgstr "OK"
+#: paperplane-mail-test.php:829
+#, php-format
+msgid "The site redirects to %s: update the site URL with Edit."
+msgstr "Il sito reindirizza a %s: aggiorna l'URL del sito con Modifica."
 
-msgid "Previous page"
-msgstr "Pagina precedente"
+#: paperplane-mail-test.php:833
+msgid "Authentication refused by the site, not by the child plugin: the theme or another plugin is blocking the REST API (see the details below). With a child older than 1.4.15 it can also be a wrong secret key or too many calls in a short time."
+msgstr "Autenticazione rifiutata dal sito, non dal plugin child: il tema o un altro plugin blocca la REST API (vedi i dettagli sotto). Con un child precedente alla 1.4.15 può essere anche una chiave segreta errata o troppe chiamate in poco tempo."
 
-msgid "Recent checks"
-msgstr "Check recenti"
+#: paperplane-mail-test.php:835
+msgid "Access denied: a firewall or security plugin is blocking the REST API."
+msgstr "Accesso negato: un firewall o un plugin di sicurezza blocca la REST API."
 
-msgid "Search sites"
-msgstr "Cerca siti"
+#: paperplane-mail-test.php:837
+msgid "Endpoint not found: the PaperPlane Mail Test Child plugin is not active on the site."
+msgstr "Endpoint non trovato: il plugin PaperPlane Mail Test Child non è attivo sul sito."
 
-msgid "Site not found."
-msgstr "Sito non trovato."
+#: paperplane-mail-test.php:839
+msgid "REST API not reachable: disabled or blocked on the site."
+msgstr "REST API non raggiungibile: disattivata o bloccata sul sito."
 
-msgid "Sites pagination"
-msgstr "Pagine dei siti"
+#: paperplane-mail-test.php:841
+msgid "Site unavailable: maintenance mode or overloaded server."
+msgstr "Sito non disponibile: modalità manutenzione o server sovraccarico."
 
+#: paperplane-mail-test.php:843
+msgid "Gateway error: the server or proxy in front of the site is not responding."
+msgstr "Errore di gateway: il server o il proxy davanti al sito non risponde."
+
+#: paperplane-mail-test.php:845
+msgid "Server error on the client site (for example a PHP error)."
+msgstr "Errore del server sul sito client (per esempio un errore PHP)."
+
+#: paperplane-mail-test.php:847
+msgid "Unexpected response."
+msgstr "Risposta inattesa."
+
+#: paperplane-mail-test.php:879
+#, php-format
+msgid "[PaperPlane Mail Test issue] Mail KO: %s"
+msgstr "[PaperPlane Mail Test issue] Mail KO: %s"
+
+#: paperplane-mail-test.php:880
+#, php-format
+msgid "The mail function test on %s failed."
+msgstr "Il test della funzione mail su %s è fallito."
+
+#: paperplane-mail-test.php:881 paperplane-mail-test.php:901
+msgid "URL:"
+msgstr "URL:"
+
+#: paperplane-mail-test.php:882
+msgid "Error:"
+msgstr "Errore:"
+
+#: paperplane-mail-test.php:883
+msgid "Details:"
+msgstr "Dettagli:"
+
+#: paperplane-mail-test.php:884 paperplane-mail-test.php:903
+msgid "Date:"
+msgstr "Data:"
+
+#: paperplane-mail-test.php:885
+#, php-format
+msgid "The client has been notified too (%s)."
+msgstr "Anche il cliente è stato avvisato (%s)."
+
+#: paperplane-mail-test.php:899
+#, php-format
+msgid "[PaperPlane Mail Test resolved] Mail OK: %s"
+msgstr "[PaperPlane Mail Test risolto] Mail OK: %s"
+
+#: paperplane-mail-test.php:900
+#, php-format
+msgid "The mail function on %s works again."
+msgstr "La funzione mail su %s funziona di nuovo."
+
+#: paperplane-mail-test.php:902
+msgid "KO since:"
+msgstr "KO dal:"
+
+#: paperplane-mail-test.php:970
+msgid "For any questions, just reply to this email."
+msgstr "Per qualsiasi domanda puoi rispondere a questa email."
+
+#. translators: date format for client emails, see https://www.php.net/manual/en/datetime.format.php
+#: paperplane-mail-test.php:983
+msgid "Y-m-d H:i"
+msgstr "d/m/Y H:i"
+
+#: paperplane-mail-test.php:991
+#, php-format
+msgid "Problem sending emails from %s"
+msgstr "Problema nell'invio delle email dal sito %s"
+
+#: paperplane-mail-test.php:992
+#, php-format
+msgid "We have detected a problem on the website %s: it cannot send emails, so messages from its forms (for example contact requests) may not be delivered."
+msgstr "Abbiamo rilevato un problema sul sito %s: non riesce a inviare email, quindi i messaggi dei suoi moduli (per esempio le richieste di contatto) potrebbero non arrivare."
+
+#: paperplane-mail-test.php:994
+#, php-format
+msgid "The website %s is not reachable"
+msgstr "Il sito %s non è raggiungibile"
+
+#: paperplane-mail-test.php:995
+#, php-format
+msgid "We have detected a problem on the website %s: it is not reachable or responds with an error, so its pages and forms may not work."
+msgstr "Abbiamo rilevato un problema sul sito %s: non è raggiungibile o risponde con un errore, quindi le sue pagine e i suoi moduli potrebbero non funzionare."
+
+#: paperplane-mail-test.php:999
+msgid "We have already been notified and are working on it."
+msgstr "Siamo già stati avvisati e ce ne stiamo occupando."
+
+#: paperplane-mail-test.php:1000
+msgid "We will send you another email as soon as the problem is solved."
+msgstr "Ti invieremo un'altra email appena il problema sarà risolto."
+
+#: paperplane-mail-test.php:1001
+msgid "Detected on:"
+msgstr "Rilevato il:"
+
+#: paperplane-mail-test.php:1002
+msgid "Technical details:"
+msgstr "Dettagli tecnici:"
+
+#: paperplane-mail-test.php:1011
+#, php-format
+msgid "Emails from %s are working again"
+msgstr "Le email del sito %s funzionano di nuovo"
+
+#: paperplane-mail-test.php:1012
+#, php-format
+msgid "The website %s is working again"
+msgstr "Il sito %s funziona di nuovo"
+
+#: paperplane-mail-test.php:1013
+#, php-format
+msgid "The problem on the website %s has been solved: everything works normally again."
+msgstr "Il problema sul sito %s è stato risolto: ora tutto funziona di nuovo normalmente."
+
+#: paperplane-mail-test.php:1014
+#, php-format
+msgid "Duration of the problem: from %1$s to %2$s."
+msgstr "Durata del problema: dal %1$s al %2$s."
+
+#: paperplane-mail-test.php:1068 paperplane-mail-test.php:1749
+#: paperplane-mail-test.php:1811 paperplane-mail-test.php:1901
+#: paperplane-mail-test.php:1990
+msgid "Every hour"
+msgstr "Ogni ora"
+
+#: paperplane-mail-test.php:1069 paperplane-mail-test.php:1749
+#: paperplane-mail-test.php:1810 paperplane-mail-test.php:1900
+#: paperplane-mail-test.php:1990
+msgid "Every day"
+msgstr "Ogni giorno"
+
+#. translators: 1: total sites, 2: OK count, 3: KO count
+#: paperplane-mail-test.php:1096
+#, php-format
+msgid "%1$d sites monitored — %2$d OK, %3$d KO"
+msgstr "%1$d siti monitorati — %2$d OK, %3$d KO"
+
+#: paperplane-mail-test.php:1101
+#, php-format
+msgid "[PaperPlane Mail Test Weekly Report] PaperPlane Mail Monitor — %s"
+msgstr "[PaperPlane Mail Test Weekly Report] PaperPlane Mail Monitor — %s"
+
+#: paperplane-mail-test.php:1106
+msgid "Weekly Mail Monitor Report"
+msgstr "Report settimanale Mail Monitor"
+
+#: paperplane-mail-test.php:1110 paperplane-mail-test.php:1710
+msgid "Site"
+msgstr "Sito"
+
+#: paperplane-mail-test.php:1111 paperplane-mail-test.php:1711
+#: paperplane-mail-test.php:1808 paperplane-mail-test.php:1989
+msgid "Frequency"
+msgstr "Frequenza"
+
+#: paperplane-mail-test.php:1112 paperplane-mail-test.php:1712
+#: paperplane-mail-test.php:2002
+msgid "Last check"
+msgstr "Ultimo check"
+
+#: paperplane-mail-test.php:1113 paperplane-mail-test.php:1714
+#: paperplane-mail-test.php:2034
+msgid "Status"
+msgstr "Stato"
+
+#: paperplane-mail-test.php:1129 paperplane-mail-test.php:1130
+msgid "Mail Monitor"
+msgstr "Monitor Mail"
+
+#: paperplane-mail-test.php:1139 paperplane-mail-test.php:1140
+#: paperplane-mail-test.php:1596 paperplane-mail-test.php:1707
+msgid "Monitored Sites"
+msgstr "Siti monitorati"
+
+#: paperplane-mail-test.php:1147 paperplane-mail-test.php:1148
+#: paperplane-mail-test.php:1616
+msgid "Settings"
+msgstr "Impostazioni"
+
+#: paperplane-mail-test.php:1546 paperplane-mail-test.php:1906
+#: paperplane-mail-test.php:2129
+msgid "Client notifications"
+msgstr "Avvisi al cliente"
+
+#: paperplane-mail-test.php:1548
+msgid "Addresses"
+msgstr "Indirizzi"
+
+#: paperplane-mail-test.php:1552
+msgid "Language"
+msgstr "Lingua"
+
+#: paperplane-mail-test.php:1561 paperplane-mail-test.php:1927
+msgid "Also tell the client when the problem is solved"
+msgstr "Avvisa il cliente anche quando il problema è risolto"
+
+#: paperplane-mail-test.php:1563 paperplane-mail-test.php:1909
+#, php-format
+msgid "Optional. Up to %d addresses separated by comma: they receive an email when the site cannot send emails or is not reachable."
+msgstr "Facoltativo. Fino a %d indirizzi separati da virgola: ricevono una email quando il sito non riesce a inviare email o non è raggiungibile."
+
+#: paperplane-mail-test.php:1570 paperplane-mail-test.php:2064
+msgid "You do not have sufficient permissions to access this page."
+msgstr "Non hai i permessi necessari per accedere a questa pagina."
+
+#: paperplane-mail-test.php:1606
+#, php-format
 msgid "The checks have not run for %s: WP-Cron is not running regularly. Configure a system cron that calls wp-cron.php every 5 minutes (see the README)."
 msgstr "I check non vengono eseguiti da %s: WP-Cron non parte regolarmente. Configura un cron di sistema che chiami wp-cron.php ogni 5 minuti (vedi il README)."
 
+#: paperplane-mail-test.php:1607
 msgid "The checks have not run yet: WP-Cron is not running regularly. Configure a system cron that calls wp-cron.php every 5 minutes (see the README)."
 msgstr "I check non sono ancora stati eseguiti: WP-Cron non parte regolarmente. Configura un cron di sistema che chiami wp-cron.php ogni 5 minuti (vedi il README)."
 
-msgid "The history is kept for %d days."
-msgstr "Lo storico viene conservato per %d giorni."
+#. translators: %s link to the settings page
+#: paperplane-mail-test.php:1615
+#, php-format
+msgid "Some sites have client addresses, but no email is sent to clients until you enter the Reply-To address in %s."
+msgstr "Alcuni siti hanno indirizzi del cliente, ma nessuna email viene inviata ai clienti finché non inserisci l'indirizzo Reply-To in %s."
 
-msgid "Type"
-msgstr "Tipo"
+#: paperplane-mail-test.php:1621
+#, php-format
+msgid "Some client addresses were not saved because they are not valid or exceed the limit of %d per site."
+msgstr "Alcuni indirizzi del cliente non sono stati salvati perché non validi o oltre il limite di %d per sito."
 
+#: paperplane-mail-test.php:1624
+msgid "Site added."
+msgstr "Sito aggiunto."
+
+#: paperplane-mail-test.php:1627
+msgid "Site updated."
+msgstr "Sito aggiornato."
+
+#: paperplane-mail-test.php:1633
+msgid "The sites were imported without secret keys: enter the key of each site with Edit (copy it from Tools → PaperPlane Mail Test on the client site, or generate a new one there)."
+msgstr "I siti sono stati importati senza chiavi segrete: inserisci la chiave di ogni sito con Modifica (copiala da Strumenti → PaperPlane Mail Test sul sito client, oppure generane una nuova lì)."
+
+#. translators: %d number of imported sites
+#: paperplane-mail-test.php:1639
+#, php-format
+msgid "%d sites imported successfully."
+msgstr "%d siti importati con successo."
+
+#: paperplane-mail-test.php:1651
+#, php-format
+msgid "Periodically checks that the mail function works on each site. Requires the %s plugin installed on each monitored site."
+msgstr "Controlla periodicamente che la funzione mail funzioni su ogni sito. Richiede il plugin %s installato su ciascun sito monitorato."
+
+#: paperplane-mail-test.php:1653
+msgid "Sites"
+msgstr "Siti"
+
+#: paperplane-mail-test.php:1659
+msgid "All"
+msgstr "Tutti"
+
+#: paperplane-mail-test.php:1660
+msgid "KO"
+msgstr "KO"
+
+#: paperplane-mail-test.php:1661
+msgid "OK"
+msgstr "OK"
+
+#: paperplane-mail-test.php:1662 paperplane-mail-test.php:1976
+msgid "Never checked"
+msgstr "Mai controllati"
+
+#: paperplane-mail-test.php:1677 paperplane-mail-test.php:1679
+msgid "Search sites"
+msgstr "Cerca siti"
+
+#: paperplane-mail-test.php:1678
+msgid "Name or URL"
+msgstr "Nome o URL"
+
+#: paperplane-mail-test.php:1681
+msgid "Clear search"
+msgstr "Annulla ricerca"
+
+#: paperplane-mail-test.php:1713
+msgid "Next check"
+msgstr "Prossimo check"
+
+#: paperplane-mail-test.php:1715
+msgid "Actions"
+msgstr "Azioni"
+
+#: paperplane-mail-test.php:1732
+msgid "Pending"
+msgstr "In attesa"
+
+#: paperplane-mail-test.php:1734
+msgid "Soon"
+msgstr "Imminente"
+
+#: paperplane-mail-test.php:1746
+#, php-format
+msgid "Client: %s"
+msgstr "Cliente: %s"
+
+#: paperplane-mail-test.php:1762
+#, php-format
+msgid "KO since %1$s (%2$s)"
+msgstr "KO dal %1$s (%2$s)"
+
+#: paperplane-mail-test.php:1765
+msgid "Client notified"
+msgstr "Cliente avvisato"
+
+#: paperplane-mail-test.php:1774 paperplane-mail-test.php:2010
+msgid "Check now"
+msgstr "Controlla ora"
+
+#: paperplane-mail-test.php:1777
+msgid "Edit"
+msgstr "Modifica"
+
+#: paperplane-mail-test.php:1779 paperplane-mail-test.php:1948
+msgid "History"
+msgstr "Storico"
+
+#: paperplane-mail-test.php:1781
+msgid "Remove this site?"
+msgstr "Rimuovere questo sito?"
+
+#: paperplane-mail-test.php:1785
+msgid "Remove"
+msgstr "Rimuovi"
+
+#: paperplane-mail-test.php:1796 paperplane-mail-test.php:1879
+msgid "Name / label"
+msgstr "Nome / etichetta"
+
+#: paperplane-mail-test.php:1800 paperplane-mail-test.php:1883
+msgid "Site URL"
+msgstr "URL sito"
+
+#: paperplane-mail-test.php:1804
+msgid "New secret key"
+msgstr "Nuova chiave segreta"
+
+#: paperplane-mail-test.php:1805
+msgid "Leave empty to keep the current key"
+msgstr "Lascia vuoto per mantenere la chiave attuale"
+
+#: paperplane-mail-test.php:1815
+msgid "Save changes"
+msgstr "Salva modifiche"
+
+#: paperplane-mail-test.php:1816
+msgid "Save and verify"
+msgstr "Salva e verifica"
+
+#: paperplane-mail-test.php:1817
+msgid "Cancel"
+msgstr "Annulla"
+
+#: paperplane-mail-test.php:1827
+msgid "Sites pagination"
+msgstr "Pagine dei siti"
+
+#: paperplane-mail-test.php:1829
+#, php-format
 msgid "%s site"
 msgid_plural "%s sites"
 msgstr[0] "%s sito"
 msgstr[1] "%s siti"
 
-msgid "Name"
-msgstr "Nome"
+#: paperplane-mail-test.php:1835
+msgid "Previous page"
+msgstr "Pagina precedente"
 
-msgid "(no name)"
-msgstr "(nessun nome)"
+#: paperplane-mail-test.php:1836
+msgid "Next page"
+msgstr "Pagina successiva"
 
-msgid "URL"
-msgstr "URL"
+#: paperplane-mail-test.php:1868
+msgid "No sites match the search or filter."
+msgstr "Nessun sito corrisponde alla ricerca o al filtro."
 
-msgid "(opens in a new tab)"
-msgstr "(si apre in una nuova scheda)"
+#: paperplane-mail-test.php:1870
+msgid "No sites configured."
+msgstr "Nessun sito configurato."
 
-msgid "Current status"
-msgstr "Stato attuale"
+#: paperplane-mail-test.php:1873 paperplane-mail-test.php:1933
+msgid "Add site"
+msgstr "Aggiungi sito"
 
+#: paperplane-mail-test.php:1886
+msgid "Must start with https://."
+msgstr "Deve iniziare con https://."
+
+#: paperplane-mail-test.php:1890
+msgid "Secret key"
+msgstr "Chiave segreta"
+
+#: paperplane-mail-test.php:1892
+msgid "Copy from Tools → Mail Test on the site"
+msgstr "Copia da Strumenti → Mail Test sul sito"
+
+#: paperplane-mail-test.php:1893
+#, php-format
+msgid "Available in %s on the site to monitor."
+msgstr "Disponibile in %s sul sito da monitorare."
+
+#: paperplane-mail-test.php:1897
+msgid "Check frequency"
+msgstr "Frequenza controllo"
+
+#: paperplane-mail-test.php:1913
+msgid "Client language"
+msgstr "Lingua del cliente"
+
+#: paperplane-mail-test.php:1923
+msgid "Recovery email"
+msgstr "Email di ripristino"
+
+#: paperplane-mail-test.php:1934
+msgid "Add and verify"
+msgstr "Aggiungi e verifica"
+
+#: paperplane-mail-test.php:1948
+msgid "Site not found."
+msgstr "Sito non trovato."
+
+#: paperplane-mail-test.php:1949 paperplane-mail-test.php:1964
+msgid "Back to the sites"
+msgstr "Torna ai siti"
+
+#: paperplane-mail-test.php:1956
+#, php-format
+msgid "History: %s"
+msgstr "Storico: %s"
+
+#: paperplane-mail-test.php:1973
+#, php-format
 msgid "✖ KO since %1$s (%2$s)"
 msgstr "✖ KO dal %1$s (%2$s)"
 
+#: paperplane-mail-test.php:1981
+msgid "Name"
+msgstr "Nome"
+
+#: paperplane-mail-test.php:1982
+msgid "(no name)"
+msgstr "(nessun nome)"
+
+#: paperplane-mail-test.php:1985
+msgid "URL"
+msgstr "URL"
+
+#: paperplane-mail-test.php:1986
+msgid "(opens in a new tab)"
+msgstr "(si apre in una nuova scheda)"
+
+#: paperplane-mail-test.php:1993
+msgid "Current status"
+msgstr "Stato attuale"
+
+#: paperplane-mail-test.php:2012
 msgid "The test email goes to the alert recipients."
 msgstr "La mail di test va ai destinatari degli alert."
+
+#: paperplane-mail-test.php:2017
+msgid "Last 30 days"
+msgstr "Ultimi 30 giorni"
+
+#. translators: 1: checks, 2: KO checks, 3: percentage
+#: paperplane-mail-test.php:2021
+#, php-format
+msgid "%1$d checks, %2$d KO — %3$s%% successful"
+msgstr "%1$d check, %2$d KO — %3$s%% riusciti"
+
+#: paperplane-mail-test.php:2025
+msgid "No checks in the last 30 days."
+msgstr "Nessun check negli ultimi 30 giorni."
+
+#: paperplane-mail-test.php:2028 paperplane-mail-test.php:2031
+msgid "Recent checks"
+msgstr "Check recenti"
+
+#: paperplane-mail-test.php:2033
+msgid "Date"
+msgstr "Data"
+
+#: paperplane-mail-test.php:2035
+msgid "Type"
+msgstr "Tipo"
+
+#: paperplane-mail-test.php:2036
+msgid "Cause"
+msgstr "Causa"
+
+#: paperplane-mail-test.php:2043
+msgid "Manual"
+msgstr "Manuale"
+
+#: paperplane-mail-test.php:2043
+msgid "Automatic"
+msgstr "Automatico"
+
+#: paperplane-mail-test.php:2052
+#, php-format
+msgid "The history is kept for %d days."
+msgstr "Lo storico viene conservato per %d giorni."
+
+#: paperplane-mail-test.php:2054
+msgid "No checks recorded yet."
+msgstr "Nessun check registrato."
+
+#: paperplane-mail-test.php:2075
+msgid "Upload error. Please try again."
+msgstr "Errore nel caricamento. Riprova."
+
+#: paperplane-mail-test.php:2076
+msgid "File too large. Maximum size is 256 KB."
+msgstr "File troppo grande. La dimensione massima è 256 KB."
+
+#: paperplane-mail-test.php:2077
+msgid "Invalid file type. Please upload a .json file."
+msgstr "Tipo di file non valido. Carica un file .json."
+
+#: paperplane-mail-test.php:2078
+msgid "Invalid file format. The file does not appear to be a valid PaperPlane Mail Monitor export."
+msgstr "Formato file non valido. Il file non sembra essere un export valido di PaperPlane Mail Monitor."
+
+#: paperplane-mail-test.php:2079
+msgid "No valid sites found in the file."
+msgstr "Nessun sito valido trovato nel file."
+
+#: paperplane-mail-test.php:2080
+msgid "This export is password-protected: enter its password to import it."
+msgstr "Questo export è protetto da password: inserisci la password per importarlo."
+
+#: paperplane-mail-test.php:2081
+msgid "Wrong password, or the file has been modified. No sites were imported."
+msgstr "Password errata, oppure il file è stato modificato. Nessun sito è stato importato."
+
+#: paperplane-mail-test.php:2085
+#, php-format
+msgid "The export password must be at least %d characters long."
+msgstr "La password dell'export deve avere almeno %d caratteri."
+
+#: paperplane-mail-test.php:2086
+msgid "The two passwords do not match."
+msgstr "Le due password non coincidono."
+
+#: paperplane-mail-test.php:2091
+msgid "Mail Monitor — Settings"
+msgstr "Mail Monitor — Impostazioni"
+
+#: paperplane-mail-test.php:2101
+msgid "KO notification email"
+msgstr "Email notifica KO"
+
+#: paperplane-mail-test.php:2106
+msgid "Alert recipient"
+msgstr "Destinatario avvisi"
+
+#: paperplane-mail-test.php:2113
+msgid "Multiple addresses separated by comma."
+msgstr "Più indirizzi separati da virgola."
+
+#: paperplane-mail-test.php:2117
+msgid "Silent test address"
+msgstr "Indirizzo test silenzioso"
+
+#: paperplane-mail-test.php:2124
+msgid "Optional. Address that receives automatic cron test emails. If empty, each monitored site sends the test to its own admin email (Settings → General). A dedicated mailbox with a delete-all rule is recommended to avoid inbox noise."
+msgstr "Opzionale. Indirizzo che riceve le mail di test automatiche del cron. Se vuoto, ogni sito monitorato invia il test al proprio indirizzo email di amministrazione (Impostazioni → Generali). Si consiglia una casella dedicata con una regola elimina-tutto per evitare rumore nella posta in arrivo."
+
+#: paperplane-mail-test.php:2130
+msgid "For each site you can enter the client addresses (Edit): the client receives an email, in the language chosen for the site, when the site cannot send emails or is not reachable, and another one when the problem is solved. Problems of the monitoring itself (secret key, REST API blocked, child plugin) are sent only to the alert recipients above."
+msgstr "Per ogni sito puoi inserire gli indirizzi del cliente (Modifica): il cliente riceve una email, nella lingua scelta per il sito, quando il sito non riesce a inviare email o non è raggiungibile, e un'altra quando il problema è risolto. I problemi del monitoraggio stesso (chiave segreta, REST API bloccata, plugin child) vengono inviati solo ai destinatari degli alert indicati sopra."
+
+#: paperplane-mail-test.php:2133
+msgid "Reply-To address"
+msgstr "Indirizzo Reply-To"
+
+#: paperplane-mail-test.php:2141
+msgid "Required to send emails to clients: their replies go to this address. While it is empty, no email is sent to clients."
+msgstr "Necessario per inviare email ai clienti: le loro risposte arrivano a questo indirizzo. Finché è vuoto, ai clienti non viene inviata nessuna email."
+
+#: paperplane-mail-test.php:2146
+msgid "Weekly report"
+msgstr "Report settimanale"
+
+#: paperplane-mail-test.php:2149
+msgid "Enable"
+msgstr "Attiva"
+
+#: paperplane-mail-test.php:2153
+msgid "Send a weekly summary email to alert recipients"
+msgstr "Invia una mail di riepilogo settimanale ai destinatari degli avvisi"
+
+#: paperplane-mail-test.php:2158
+msgid "Day of the week"
+msgstr "Giorno della settimana"
+
+#: paperplane-mail-test.php:2163
+msgid "Monday"
+msgstr "Lunedì"
+
+#: paperplane-mail-test.php:2164
+msgid "Tuesday"
+msgstr "Martedì"
+
+#: paperplane-mail-test.php:2165
+msgid "Wednesday"
+msgstr "Mercoledì"
+
+#: paperplane-mail-test.php:2166
+msgid "Thursday"
+msgstr "Giovedì"
+
+#: paperplane-mail-test.php:2167
+msgid "Friday"
+msgstr "Venerdì"
+
+#: paperplane-mail-test.php:2168
+msgid "Saturday"
+msgstr "Sabato"
+
+#: paperplane-mail-test.php:2169
+msgid "Sunday"
+msgstr "Domenica"
+
+#: paperplane-mail-test.php:2179
+msgid "Time"
+msgstr "Ora"
+
+#: paperplane-mail-test.php:2186
+msgid "Based on the timezone set in Settings → General."
+msgstr "In base al fuso orario impostato in Impostazioni → Generali."
+
+#: paperplane-mail-test.php:2191
+msgid "Save"
+msgstr "Salva"
+
+#: paperplane-mail-test.php:2195
+msgid "Export / Import"
+msgstr "Export / Import"
+
+#: paperplane-mail-test.php:2196
+msgid "Use export and import to move the list of monitored sites to another installation."
+msgstr "Usa export e import per spostare la lista dei siti monitorati su un'altra installazione."
+
+#: paperplane-mail-test.php:2198
+msgid "Export"
+msgstr "Export"
+
+#: paperplane-mail-test.php:2199
+msgid "Downloads a JSON file with all monitored sites. Secret keys are never exported in clear."
+msgstr "Scarica un file JSON con tutti i siti monitorati. Le chiavi segrete non vengono mai esportate in chiaro."
+
+#: paperplane-mail-test.php:2205 paperplane-mail-test.php:2208
+msgid "Secret keys"
+msgstr "Chiavi segrete"
+
+#: paperplane-mail-test.php:2211
+msgid "Protect with a password (recommended)"
+msgstr "Proteggi con una password (consigliato)"
+
+#: paperplane-mail-test.php:2215
+msgid "Do not export the keys"
+msgstr "Non esportare le chiavi"
+
+#: paperplane-mail-test.php:2218
+msgid "Without keys, after importing you will have to enter the key of each site with Edit."
+msgstr "Senza chiavi, dopo l'import dovrai inserire la chiave di ogni sito con Modifica."
+
+#: paperplane-mail-test.php:2222
+msgid "Password"
+msgstr "Password"
+
+#: paperplane-mail-test.php:2225
+#, php-format
+msgid "At least %d characters. It will be asked when importing: keep it separate from the file (for example in a password manager), it cannot be recovered."
+msgstr "Almeno %d caratteri. Verrà richiesta all'import: conservala separata dal file (per esempio in un password manager), non è recuperabile."
+
+#: paperplane-mail-test.php:2229
+msgid "Confirm password"
+msgstr "Conferma password"
+
+#: paperplane-mail-test.php:2233
+msgid "Download export file"
+msgstr "Scarica il file di export"
+
+#: paperplane-mail-test.php:2236 paperplane-mail-test.php:2271
+msgid "Import"
+msgstr "Import"
+
+#: paperplane-mail-test.php:2237
+msgid "Upload an export file generated by this plugin. The secret keys in the file must still be the ones active on the respective client sites."
+msgstr "Carica un file di export generato da questo plugin. Le chiavi segrete nel file devono essere ancora quelle attive sui rispettivi siti client."
+
+#: paperplane-mail-test.php:2243
+msgid "Export file (.json)"
+msgstr "File di export (.json)"
+
+#: paperplane-mail-test.php:2247
+msgid "Export password"
+msgstr "Password dell'export"
+
+#: paperplane-mail-test.php:2250
+msgid "Only for password-protected exports."
+msgstr "Solo per gli export protetti da password."
+
+#: paperplane-mail-test.php:2254 paperplane-mail-test.php:2257
+msgid "Import mode"
+msgstr "Modalità di import"
+
+#: paperplane-mail-test.php:2260
+msgid "Replace all existing sites"
+msgstr "Sostituisci tutti i siti esistenti"
+
+#: paperplane-mail-test.php:2264
+msgid "Add to existing sites"
+msgstr "Aggiungi ai siti esistenti"
+
+#: paperplane-mail-test.php:2267
+msgid "\"Replace\" will permanently delete all currently monitored sites."
+msgstr "\"Sostituisci\" eliminerà definitivamente tutti i siti attualmente monitorati."
