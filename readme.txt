@@ -3,7 +3,7 @@ Contributors: paperplanefactory
 Requires at least: 5.9
 Tested up to: 7.1
 Requires PHP: 8.0
-Stable tag: 1.3.1
+Stable tag: 1.3.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -16,6 +16,10 @@ PaperPlane Mail Test monitors the mail function on your client sites from a cent
 Each client site must have the PaperPlane Mail Test Child plugin installed and configured.
 
 == Changelog ==
+
+= 1.3.2 =
+* Messaggio "Troppe verifiche in poco tempo" (HTTP 429) aggiornato al nuovo limite del child 1.4.16: 20 verifiche ogni 5 minuti per sito
+* Qualità del codice (grazie a Dennis Ploetner): WordPress Coding Standards, analisi statica PHPStan, test PHPUnit e CI su GitHub Actions; più sanitizzazione e escaping dei dati in ingresso e in uscita, senza cambiamenti di funzionamento
 
 = 1.3.1 =
 * Tutte le mail (alert, ripristini, report settimanale, avvisi al cliente) sono composte da parti (introduzione, righe, contenuto, chiusura) e passano dal nuovo filtro `pp_mm_email_html`: un mu-plugin del sito della dashboard può vestirle con un template grafico, anche nella lingua del cliente

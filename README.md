@@ -194,7 +194,7 @@ Client emails are composed with the client's language active, so the template ca
 | HTTP 401 — The secret key is wrong | Copy the key again from the client site and update it with **Edit** (child 1.4.15 or later) |
 | HTTP 401 — The child plugin has no secret key yet | Open **Tools → PaperPlane Mail Test** on the client site and copy the key |
 | HTTP 401 — Authentication refused by the site, not by the child plugin | The theme or another plugin blocks the REST API for visitors who are not logged in: allow the `/pp-mail-test/v1/` route (the endpoint has its own signed authentication). With a child older than 1.4.15 it can also be a wrong key or too many calls |
-| HTTP 429 — Too many checks in a short time | The client site accepts up to 100 checks every 5 minutes |
+| HTTP 429 — Too many checks in a short time | The client site accepts up to 20 checks every 5 minutes (100 per IP before child 1.4.16) |
 | HTTP 401 — Clocks differ by more than 5 minutes | Check the time (NTP) on both servers |
 | HTTP 401 — Request rejected as already received | Replay protection; if it repeats, check the server clocks |
 | HTTP 401/403 — Access denied | A firewall or security plugin (e.g. Cloudflare, Wordfence) blocks the REST API |

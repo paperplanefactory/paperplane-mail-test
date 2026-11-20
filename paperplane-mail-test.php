@@ -2,7 +2,7 @@
 /**
  * Plugin Name: PaperPlane Mail Test
  * Description: Monitors mail function on client sites. Requires PaperPlane Mail Test Child installed on each site.
- * Version: 1.3.1
+ * Version: 1.3.2
  * Requires at least: 5.9
  * Requires PHP: 8.0
  * Author: Paper Plane Factory
@@ -906,7 +906,7 @@ function pp_mm_describe_http_error( int $code, $response, array $json ): string 
 	} elseif ( $rest_code === 'pp_mt_not_configured' ) {
 		$text = __( 'The child plugin has no secret key yet: open Tools → PaperPlane Mail Test on the client site, copy the key and enter it here with Edit.', 'paperplane-mail-test' );
 	} elseif ( $rest_code === 'pp_mt_rate_limited' ) {
-		$text = __( 'Too many checks in a short time: the client site accepts up to 100 every 5 minutes. Wait a few minutes.', 'paperplane-mail-test' );
+		$text = __( 'Too many checks in a short time: the client site accepts up to 20 every 5 minutes. Wait a few minutes.', 'paperplane-mail-test' );
 	} elseif ( $rest_code === 'pp_mt_clock_skew' ) {
 		$text = __( 'The clocks of this server and the client site differ by more than 5 minutes: check the time (NTP) on both servers.', 'paperplane-mail-test' );
 	} elseif ( $rest_code === 'pp_mt_replay' ) {
