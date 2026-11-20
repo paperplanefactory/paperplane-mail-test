@@ -1,0 +1,52 @@
+<?xml version="1.0"?>
+<ruleset name="PaperPlane Mail Test">
+	<file>paperplane-mail-test.php</file>
+	<file>uninstall.php</file>
+	<file>tests</file>
+
+	<arg name="extensions" value="php"/>
+	<arg name="colors"/>
+	<arg value="sp"/>
+
+	<config name="testVersion" value="8.0-"/>
+	<config name="minimum_wp_version" value="5.9"/>
+
+	<rule ref="PHPCompatibilityWP"/>
+
+	<rule ref="WordPress">
+		<!-- Il codice usa di proposito $x === '' (non Yoda). -->
+		<exclude name="WordPress.PHP.YodaConditions"/>
+		<!-- Commenti brevi in italiano, non docblock completi. -->
+		<exclude name="Squiz.Commenting"/>
+		<exclude name="Generic.Commenting.DocComment"/>
+		<!-- Tabelle dedicate del plugin: query dirette volute, senza object cache. -->
+		<exclude name="WordPress.DB.DirectDatabaseQuery"/>
+		<!-- base64 per i dati cifrati, non offuscamento. -->
+		<exclude name="WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode"/>
+		<exclude name="WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_decode"/>
+		<!-- Cron ogni 5 minuti voluto (ricontrollo dei KO). -->
+		<exclude name="WordPress.WP.CronInterval"/>
+		<!-- $_GET solo per la visualizzazione (vista, filtri, ordinamento, avvisi): ogni azione passa da POST con nonce. -->
+		<exclude name="WordPress.Security.NonceVerification.Recommended"/>
+	</rule>
+
+	<rule ref="WordPress.WP.I18n">
+		<properties>
+			<property name="text_domain" type="array">
+				<element value="paperplane-mail-test"/>
+			</property>
+		</properties>
+	</rule>
+	<rule ref="WordPress.NamingConventions.PrefixAllGlobals">
+		<properties>
+			<property name="prefixes" type="array">
+				<element value="pp_mm"/>
+			</property>
+		</properties>
+		<exclude-pattern>tests/*</exclude-pattern>
+	</rule>
+
+	<rule ref="WordPress.Files.FileName">
+		<exclude-pattern>tests/*</exclude-pattern>
+	</rule>
+</ruleset>

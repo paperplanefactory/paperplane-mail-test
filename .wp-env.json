@@ -1,0 +1,11 @@
+{
+	"phpVersion": "8.0",
+	"plugins": [
+		".",
+		"paperplanefactory/paperplane-mail-test-child"
+	],
+	"config": {
+		"WP_DEBUG": true,
+		"WP_DEBUG_LOG": true
+	}
+}

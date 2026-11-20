@@ -256,6 +256,14 @@ The plugin updates automatically from the WordPress dashboard via releases publi
 
 ---
 
+## Development
+
+```bash
+composer install
+composer qa        # lint (PHPCS) + analyse (PHPStan) + test (PHPUnit)
+npx @wordpress/env start   # local WordPress with plugin + child (Docker)
+```
+
 ## Related
 
 - [PaperPlane Mail Test Child](https://github.com/paperplanefactory/paperplane-mail-test-child) — install on each monitored site

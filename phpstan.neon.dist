@@ -1,0 +1,22 @@
+includes:
+	- vendor/szepeviktor/phpstan-wordpress/extension.neon
+
+parameters:
+	level: 5
+	paths:
+		- paperplane-mail-test.php
+		- uninstall.php
+		- tests
+	excludePaths:
+		# Stub minimi di WordPress per i test: oscurerebbero gli stub completi.
+		- tests/bootstrap.php
+	ignoreErrors:
+		# getVcsApi() è tipizzato come Api, ma per GitHub restituisce GitHubApi (che ha enableReleaseAssets).
+		-
+			identifier: method.notFound
+			message: '#enableReleaseAssets\(\)#'
+			path: paperplane-mail-test.php
+		# check_admin_referer() termina la richiesta se il nonce non è valido: "&& check_admin_referer()" è voluto.
+		-
+			identifier: booleanAnd.rightAlwaysTrue
+			path: paperplane-mail-test.php

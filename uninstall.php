@@ -28,7 +28,7 @@ foreach ( array(
 	'pp_mm_cron_lock',
 	'pp_mm_last_cron_run',
 	'pp_mm_history_purged',
-) as $option ) {
+) as $option ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- scope di uninstall.php.
 	delete_option( $option );
 }
 wp_clear_scheduled_hook( 'pp_mm_run_checks' );
