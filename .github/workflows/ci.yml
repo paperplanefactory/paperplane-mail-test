@@ -17,5 +17,8 @@ jobs:
         with:
           php-version: ${{ matrix.php }}
           coverage: none
+      # Prima di composer install: vendor/ versionato deve contenere solo le dipendenze di produzione.
+      - name: Check committed vendor/
+        run: php .github/scripts/check-vendor.php
       - run: composer install --no-progress
       - run: composer qa

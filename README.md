@@ -264,6 +264,8 @@ composer qa        # lint (PHPCS) + analyse (PHPStan) + test (PHPUnit)
 npx @wordpress/env start   # local WordPress with plugin + child (Docker)
 ```
 
+`vendor/` is committed because the plugin needs `plugin-update-checker` at runtime. Before committing, restore the production-only vendor with `composer install --no-dev`: CI checks it with `.github/scripts/check-vendor.php` and fails if dev packages end up in `vendor/`.
+
 ## Related
 
 - [PaperPlane Mail Test Child](https://github.com/paperplanefactory/paperplane-mail-test-child) — install on each monitored site
